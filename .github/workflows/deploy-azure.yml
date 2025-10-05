@@ -206,11 +206,9 @@ jobs:
 
             IMAGE_URN: almalinux:almalinux:9-gen2:latest
 
-          # Prepare cloud-init early (avoids: CLOUD_INIT: unbound variable)
-          mkdir -p outputs
+          # Prepare cloud-init early (set -u safe)
           CLOUD_INIT="$(mktemp)"
           echo "CLOUD_INIT at: $CLOUD_INIT"
-
           echo "==> Cloud-init hardening (EL9)"
           cat > "$CLOUD_INIT" <<EOF
           #cloud-config
