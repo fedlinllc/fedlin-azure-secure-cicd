@@ -206,19 +206,17 @@ jobs:
 
             IMAGE_URN: almalinux:almalinux:9-gen2:latest
 
-          echo "==> Cloud-init hardening (EL9)"
+          # Prepare cloud-init early (avoids: CLOUD_INIT: unbound variable)
+          mkdir -p outputs
           CLOUD_INIT="$(mktemp)"
-          # Ensure CLOUD_INIT is defined before use (set -u safe)
-          : "${CLOUD_INIT:=$(mktemp)}"
           echo "CLOUD_INIT at: $CLOUD_INIT"
 
-          cat > "$CLOUD_INIT" <<EOF
-
+          echo "==> Cloud-init hardening (EL9)"
           cat > "$CLOUD_INIT" <<EOF
           #cloud-config
           ssh_pwauth: false
           users:
-            - name: ${SSH_USERNAME}
+            - name: "fedlin"
               sudo: ALL=(ALL) NOPASSWD:ALL
               groups: [ wheel ]
               shell: /bin/bash
@@ -235,26 +233,9 @@ jobs:
             - sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
             - sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 2/' /etc/ssh/sshd_config
             - sed -i 's/^#\?LogLevel.*/LogLevel VERBOSE/' /etc/ssh/sshd_config
-            - restorecon -Rv /home/"fedlin"} || true
+            - restorecon -Rv /home/${SSH_USERNAME} || true
             - systemctl restart sshd
           EOF
-
-          # --- Ensure SSH key and Alma image are set ---
-          if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
-            echo "No SSH_PUBLIC_KEY found. Generating temporary keypair..."
-            mkdir -p .tmp_ssh
-            ssh-keygen -t ed25519 -N "" -f .tmp_ssh/id_ed25519 -C "fedlin"
-            SSH_PUBLIC_KEY="$(cat .tmp_ssh/id_ed25519.pub)"
-            echo "SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY}" >> "$GITHUB_ENV"
-          fi
-
-          if [[ -z "${IMAGE_URN:-}" ]]; then
-            IMAGE_URN="almalinux:almalinux:9-gen2:latest"
-            echo "IMAGE_URN=${IMAGE_URN}" >> "$GITHUB_ENV"
-          fi
-
-          echo "Using IMAGE_URN=${IMAGE_URN}"
-          echo "Using SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY:0:40}..."
 
           echo "==> Ensure VM (AlmaLinux 9)"
           if ! az vm show -g "$RG" -n "$VM" >/dev/null 2>&1; then
@@ -265,10 +246,10 @@ jobs:
               --size "$VM_SIZE" \
               --admin-username "$SSH_USERNAME" \
               --authentication-type ssh \
-              --ssh-key-values "'$SSH_PUBLIC_KEY'"
+              --ssh-key-values "$SSH_PUBLIC_KEY" \
               --nics "$NIC" \
               --custom-data "$CLOUD_INIT" \
-              --os-disk-name "fedlin-osdisk" \
+              --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
               --public-ip-address "$PIP" \
               -o json > outputs/vm_create.json
           else
