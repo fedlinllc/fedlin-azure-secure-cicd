@@ -169,11 +169,10 @@ jobs:
               --public-ip-address "$PIP" -o json > outputs/nic_create.json
           fi
 
-          # Temporary safeguard: ensure IMAGE_URN is defined
-          : "${IMAGE_URN:=procomputers:centos-9-stream:centos-9-stream-gen2:latest}"
-          echo "Using IMAGE_URN=${IMAGE_URN}"
+          # Fallback Alma 9 Gen2 image if resolver finds nothing (no ':latest')
+          : "${IMAGE_URN:=almalinux:almalinux-x86_64:9-gen2:9.6.202505220}"
 
-          # Resolve exact AlmaLinux 9 Gen2 image for this region (no ':latest')
+          # Resolve exact AlmaLinux 9 Gen2 image for this region
           echo "Resolving AlmaLinux 9 Gen2 in ${REGION}..."
           ALMA_URN="$(az vm image list \
             --location "${REGION}" \
@@ -182,29 +181,10 @@ jobs:
             --sku 9-gen2 \
             --all \
             --query "sort_by(@, &version)[-1].urn" -o tsv || true)"
-          if [[ -z "${ALMA_URN:-}" ]]; then
-            echo "ERROR: No AlmaLinux 9 Gen2 image found in ${REGION}." >&2
-            exit 1
+          if [[ -n "${ALMA_URN:-}" ]]; then
+            IMAGE_URN="${ALMA_URN}"
           fi
-          IMAGE_URN="${ALMA_URN}"
-          echo "IMAGE_URN=${IMAGE_URN}" >> "$GITHUB_ENV"
           echo "Using IMAGE_URN=${IMAGE_URN}"
-
-          az vm create \
-            -g "$RG" \
-            -n "$VM" \
-            --image "${IMAGE_URN}" \
-            --size "$VM_SIZE" \
-            --admin-username "$SSH_USERNAME" \
-            --authentication-type ssh \
-            --ssh-key-values "$SSH_PUBLIC_KEY" \
-            --nics "$NIC" \
-            --custom-data "$CLOUD_INIT" \
-            --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
-            --public-ip-address "$PIP" \
-            -o json > outputs/vm_create.json
-
-            IMAGE_URN: almalinux:almalinux:9-gen2:latest
 
           # Prepare cloud-init early (set -u safe)
           CLOUD_INIT="$(mktemp)"
@@ -219,7 +199,7 @@ jobs:
               groups: [ wheel ]
               shell: /bin/bash
               ssh_authorized_keys:
-                - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ Fedlin
+                - ${SSH_PUBLIC_KEY}
 
           package_update: true
           packages:
@@ -231,7 +211,7 @@ jobs:
             - sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
             - sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 2/' /etc/ssh/sshd_config
             - sed -i 's/^#\?LogLevel.*/LogLevel VERBOSE/' /etc/ssh/sshd_config
-            - restorecon -Rv /home/${SSH_USERNAME} || true
+            - restorecon -Rv /home/fedlin || true
             - systemctl restart sshd
           EOF
 
