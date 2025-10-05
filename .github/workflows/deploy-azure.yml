@@ -17,7 +17,7 @@ concurrency:
 
 env:
   # ---- Portfolio-friendly defaults (override as needed) ----
-  REGION: centralus
+  REGION: eastus
   RESOURCE_PREFIX: fedlin
   VM_SIZE: Standard_B1s          # free/low-cost tier friendly
   SSH_USERNAME: fedlin
@@ -183,7 +183,7 @@ jobs:
               groups: [ wheel ]
               shell: /bin/bash
               ssh_authorized_keys:
-                - ${SSH_PUBLIC_KEY}
+                - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzZZfzdMTu+bTmTmTN3cu837BwsuZJU3TW1U0VxHOOY jeremiah@fedlin
 
           package_update: true
           packages:
