@@ -179,7 +179,7 @@ jobs:
           #cloud-config
           ssh_pwauth: false
           users:
-            - name: "jeremiah@fedlin"
+            - name: ${SSH_USERNAME}
               sudo: ALL=(ALL) NOPASSWD:ALL
               groups: [ wheel ]
               shell: /bin/bash
@@ -224,7 +224,7 @@ jobs:
               -n "$VM" \
               --image "${IMAGE_URN}" \
               --size "$VM_SIZE" \
-              --admin-username "jeremiah@fedlin" \
+              --admin-username "$SSH_USERNAME" \
               --authentication-type ssh \
               --ssh-key-values "'$SSH_PUBLIC_KEY'"
               --nics "$NIC" \
