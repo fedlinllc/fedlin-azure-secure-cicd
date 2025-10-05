@@ -303,8 +303,8 @@ jobs:
 
       - name: Add GitLab remote
         env:
-          GITLAB_HOST: 30282969
-          GITLAB_PROJECT: 75052681   # e.g. fedlinllc/fedlin-azure-secure-cicd
+          GITLAB_HOST: ghitlab.com
+          GITLAB_PROJECT: fedlinllc/fedlin-azure-secure-cicd   # e.g. fedlinllc/fedlin-azure-secure-cicd
           GITLAB_TOKEN: ***REDACTED***       # PAT with api + write_repository
         run: |
           set -euo pipefail
