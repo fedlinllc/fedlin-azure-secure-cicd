@@ -1,15 +1,14 @@
-name: Fedlin Azure Secure CI/CD
+name: Fedlin Azure Secure CI/CD (Self-Contained)
 
 on:
   push:
     branches: [ "main" ]
     paths:
-      - "scripts/**"
       - ".github/workflows/deploy-azure.yml"
   workflow_dispatch:
 
 permissions:
-  id-token: write   # required for OIDC
+  id-token: write    # OIDC to Azure
   contents: read
 
 concurrency:
@@ -17,12 +16,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # ---- Portfolio-friendly defaults (override as needed) ----
   REGION: centralus
   RESOURCE_PREFIX: fedlin
-  VM_SIZE: Standard_B1s
+  VM_SIZE: Standard_B1s          # free/low-cost tier friendly
   SSH_USERNAME: fedlin
-  MY_IP: "*"            # tighten to your /32 later
-  ENABLE_HTTP: "false"  # set "true" to allow 80/443 in NSG
+  MY_IP: "*"                     # tighten to your /32 later (e.g., "X.Y.Z.W/32")
+  ENABLE_HTTP: "false"           # "true" opens 80/443 in NSG
+  VNET_CIDR: 10.10.0.0/16
+  SUBNET_CIDR: 10.10.1.0/24
 
 jobs:
   deploy:
@@ -42,13 +44,19 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Verify Azure CLI context
+      - name: Preflight checks
+        env:
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
           set -euo pipefail
-          az account show
-          az --version
+          az account show 1>/dev/null
+          if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
+            echo "ERROR: SSH_PUBLIC_KEY GitHub secret is not set." >&2
+            exit 1
+          fi
+          mkdir -p outputs
 
-      - name: Deploy Azure resources
+      - name: Deploy Azure resources (VNET, NSG, VM, LAW, DCR, AMA)
         env:
           REGION: ${{ env.REGION }}
           RESOURCE_PREFIX: ${{ env.RESOURCE_PREFIX }}
@@ -57,8 +65,180 @@ jobs:
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
           MY_IP: ${{ env.MY_IP }}
           ENABLE_HTTP: ${{ env.ENABLE_HTTP }}
+          VNET_CIDR: ${{ env.VNET_CIDR }}
+          SUBNET_CIDR: ${{ env.SUBNET_CIDR }}
         run: |
-          bash scripts/az_deploy.sh
+          set -euo pipefail
+
+          RG="${RESOURCE_PREFIX}-rg"
+          LAW="${RESOURCE_PREFIX}-law"
+          DCR="${RESOURCE_PREFIX}-dcr"
+          DCRA="${RESOURCE_PREFIX}-dcra"
+          VNET="${RESOURCE_PREFIX}-vnet"
+          SUBNET="${RESOURCE_PREFIX}-subnet"
+          NSG="${RESOURCE_PREFIX}-nsg"
+          PIP="${RESOURCE_PREFIX}-pip"
+          NIC="${RESOURCE_PREFIX}-nic"
+          VM="${RESOURCE_PREFIX}-vm"
+          AMA_NAME="AzureMonitorLinuxAgent"
+
+          echo "==> Ensure Resource Group"
+          az group show -n "$RG" >/dev/null 2>&1 || az group create -n "$RG" -l "$REGION" 1>/dev/null
+
+          echo "==> Ensure Log Analytics Workspace"
+          if ! LAW_ID="$(az monitor log-analytics workspace show -g "$RG" -n "$LAW" --query id -o tsv 2>/dev/null)"; then
+            az monitor log-analytics workspace create -g "$RG" -n "$LAW" -l "$REGION" -o json > outputs/law_create.json
+            LAW_ID="$(az monitor log-analytics workspace show -g "$RG" -n "$LAW" --query id -o tsv)"
+          else
+            az monitor log-analytics workspace show -g "$RG" -n "$LAW" -o json > outputs/law_show.json
+          fi
+          echo "LAW_ID=$LAW_ID"
+
+          echo "==> Ensure Data Collection Rule (syslog → LAW)"
+          DCR_FILE="$(mktemp)"
+          cat > "$DCR_FILE" <<EOF
+          {
+            "location": "${REGION}",
+            "properties": {
+              "dataSources": {
+                "syslog": [
+                  {
+                    "name": "syslog-source",
+                    "streams": [ "Microsoft-Syslog" ],
+                    "facilityNames": ["auth","authpriv","daemon","kern","syslog","user","local0"],
+                    "logLevels": ["Debug","Info","Notice","Warning","Error","Critical","Alert","Emergency"]
+                  }
+                ]
+              },
+              "destinations": {
+                "logAnalytics": [
+                  {
+                    "name": "law-dest",
+                    "workspaceResourceId": "${LAW_ID}"
+                  }
+                ]
+              },
+              "dataFlows": [
+                { "streams": ["Microsoft-Syslog"], "destinations": ["law-dest"] }
+              ]
+            }
+          }
+          EOF
+
+          if ! az monitor data-collection rule show -g "$RG" -n "$DCR" 1>/dev/null 2>&1; then
+            az monitor data-collection rule create -g "$RG" -n "$DCR" --rule-file "$DCR_FILE" -o json > outputs/dcr_create.json
+          else
+            echo "DCR exists; leaving as-is." | tee outputs/dcr_exists.txt
+          fi
+          DCR_ID="$(az monitor data-collection rule show -g "$RG" -n "$DCR" --query id -o tsv)"
+
+          echo "==> Ensure VNET + Subnet"
+          if ! az network vnet show -g "$RG" -n "$VNET" 1>/dev/null 2>&1; then
+            az network vnet create -g "$RG" -n "$VNET" --address-prefix "$VNET_CIDR" \
+              --subnet-name "$SUBNET" --subnet-prefix "$SUBNET_CIDR" -o json > outputs/vnet_create.json
+          fi
+
+          echo "==> Ensure NSG with CIS-style rules"
+          if ! az network nsg show -g "$RG" -n "$NSG" 1>/dev/null 2>&1; then
+            az network nsg create -g "$RG" -n "$NSG" -o json > outputs/nsg_create.json
+
+            # Allow SSH from MY_IP only (default inbound is deny on unused rules)
+            az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-SSH \
+              --priority 1000 --direction Inbound --access Allow --protocol Tcp \
+              --destination-port-ranges 22 --source-address-prefixes "$MY_IP" 1>/dev/null
+
+            if [[ "${ENABLE_HTTP}" == "true" ]]; then
+              az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTP \
+                --priority 1010 --direction Inbound --access Allow --protocol Tcp \
+                --destination-port-ranges 80 --source-address-prefixes Internet 1>/dev/null
+              az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTPS \
+                --priority 1020 --direction Inbound --access Allow --protocol Tcp \
+                --destination-port-ranges 443 --source-address-prefixes Internet 1>/dev/null
+            fi
+          fi
+
+          echo "==> Ensure Public IP + NIC"
+          az network public-ip show -g "$RG" -n "$PIP" >/dev/null 2>&1 || \
+            az network public-ip create -g "$RG" -n "$PIP" --allocation-method Static --sku Standard -o json > outputs/pip_create.json
+
+          if ! az network nic show -g "$RG" -n "$NIC" >/dev/null 2>&1; then
+            SUBNET_ID="$(az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --query id -o tsv)"
+            az network nic create -g "$RG" -n "$NIC" --subnet "$SUBNET_ID" --network-security-group "$NSG" \
+              --public-ip-address "$PIP" -o json > outputs/nic_create.json
+          fi
+
+          echo "==> Cloud-init hardening (Rocky Linux 9)"
+          CLOUD_INIT="$(mktemp)"
+          cat > "$CLOUD_INIT" <<EOF
+          #cloud-config
+          ssh_pwauth: false
+          users:
+            - name: ${SSH_USERNAME}
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              groups: [ wheel ]
+              shell: /bin/bash
+              ssh_authorized_keys:
+                - ${SSH_PUBLIC_KEY}
+          package_update: true
+          packages:
+            - audit
+            - policycoreutils-python-utils
+          runcmd:
+            - systemctl enable --now auditd
+            - sed -i 's/^#\\?ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
+            - sed -i 's/^#\\?ClientAliveCountMax.*/ClientAliveCountMax 2/' /etc/ssh/sshd_config
+            - sed -i 's/^#\\?LogLevel.*/LogLevel VERBOSE/' /etc/ssh/sshd_config
+            - systemctl restart sshd
+          EOF
+
+          echo "==> Ensure VM (Rocky 9)"
+          if ! az vm show -g "$RG" -n "$VM" 1>/dev/null 2>&1; then
+            az vm create -g "$RG" -n "$VM" \
+              --image "RockyLinux:rockylinux:9-gen2:latest" \
+              --size "$VM_SIZE" \
+              --admin-username "$SSH_USERNAME" \
+              --authentication-type ssh \
+              --ssh-key-values <(echo "$SSH_PUBLIC_KEY") \
+              --nics "$NIC" \
+              --custom-data "$CLOUD_INIT" \
+              --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
+              --public-ip-address "$PIP" \
+              -o json > outputs/vm_create.json
+          else
+            az vm show -g "$RG" -n "$VM" -o json > outputs/vm_show.json
+          fi
+
+          PUBLIC_IP="$(az network public-ip show -g "$RG" -n "$PIP" --query ipAddress -o tsv)"
+          printf '{"publicIp":"%s"}\n' "$PUBLIC_IP" > outputs/public_ip.json
+
+          echo "==> Ensure Azure Monitor Agent (AMA) + DCR Association"
+          if ! az vm extension show -g "$RG" --vm-name "$VM" --name "$AMA_NAME" --query provisioningState -o tsv 2>/dev/null; then
+            az vm extension set -g "$RG" --vm-name "$VM" \
+              --publisher Microsoft.Azure.Monitor \
+              --name "$AMA_NAME" \
+              -o json > outputs/ama_install.json
+          fi
+
+          VM_ID="$(az vm show -g "$RG" -n "$VM" --query id -o tsv)"
+          if ! az monitor data-collection rule association show --association-name "$DCRA" --resource "$VM_ID" 1>/dev/null 2>&1; then
+            az monitor data-collection rule association create \
+              --association-name "$DCRA" \
+              --resource "$VM_ID" \
+              --rule-id "$DCR_ID" -o json > outputs/dcra_create.json
+          fi
+
+          echo "==> Capture evidence"
+          az resource list -g "$RG" -o table | tee outputs/resources_table.txt
+          az network nsg rule list -g "$RG" --nsg-name "$NSG" -o table | tee outputs/nsg_rules.txt
+          cat > outputs/ssh_instructions.txt <<TXT
+          SSH:
+            ssh ${SSH_USERNAME}@${PUBLIC_IP}
+
+          Notes:
+            - Restrict SSH to your /32 by setting env.MY_IP (e.g., "X.Y.Z.W/32").
+            - Set ENABLE_HTTP=true to allow TCP 80/443.
+            - AMA installed; syslog flows to LAW via DCR "${DCR}".
+          TXT
 
       - name: Upload deployment artifacts
         uses: actions/upload-artifact@v4
