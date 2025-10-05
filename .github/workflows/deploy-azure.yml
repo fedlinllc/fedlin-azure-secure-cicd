@@ -173,8 +173,8 @@ jobs:
           : "${IMAGE_URN:=procomputers:centos-9-stream:centos-9-stream-gen2:latest}"
           echo "Using IMAGE_URN=${IMAGE_URN}"
 
-          # Resolve exact AlmaLinux 9 Gen2 image version for this region (no ':latest')
-          echo "Resolving AlmaLinux 9 Gen2 in ${REGION}…"
+          # Resolve exact AlmaLinux 9 Gen2 image for this region (no ':latest')
+          echo "Resolving AlmaLinux 9 Gen2 in ${REGION}..."
           ALMA_URN="$(az vm image list \
             --location "${REGION}" \
             --publisher almalinux \
@@ -186,8 +186,25 @@ jobs:
             echo "ERROR: No AlmaLinux 9 Gen2 image found in ${REGION}." >&2
             exit 1
           fi
-          echo "IMAGE_URN=${ALMA_URN}" >> "$GITHUB_ENV"
-          echo "Using IMAGE_URN=${ALMA_URN}"
+          IMAGE_URN="${ALMA_URN}"
+          echo "IMAGE_URN=${IMAGE_URN}" >> "$GITHUB_ENV"
+          echo "Using IMAGE_URN=${IMAGE_URN}"
+
+          az vm create \
+            -g "$RG" \
+            -n "$VM" \
+            --image "${IMAGE_URN}" \
+            --size "$VM_SIZE" \
+            --admin-username "$SSH_USERNAME" \
+            --authentication-type ssh \
+            --ssh-key-values "$SSH_PUBLIC_KEY" \
+            --nics "$NIC" \
+            --custom-data "$CLOUD_INIT" \
+            --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
+            --public-ip-address "$PIP" \
+            -o json > outputs/vm_create.json
+
+            IMAGE_URN: almalinux:almalinux:9-gen2:latest
 
           echo "==> Cloud-init hardening (EL9)"
           CLOUD_INIT="$(mktemp)"
