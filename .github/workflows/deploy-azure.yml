@@ -301,7 +301,7 @@ jobs:
           git config user.name "fedlin-ci"
           git config user.email "ci@fedlin.com"
 
-      - name: Add GitLab remote
+      - name: Add GitLab remote (validate)
         env:
           GITLAB_HOST: gitlab.com
           GITLAB_PROJECT: fedlinllc/fedlin-azure-secure-cicd   # e.g. fedlinllc/fedlin-azure-secure-cicd
@@ -311,13 +311,36 @@ jobs:
           : "${GITLAB_HOST:?Set secret GITLAB_HOST (e.g., gitlab.com)}"
           : "${GITLAB_PROJECT:?Set secret GITLAB_PROJECT (e.g., namespace/repo)}"
           : "${GITLAB_TOKEN:?Set secret GITLAB_TOKEN (PAT with api,write_repository)}"
+
+          # sanity checks
+          if [[ "$GITLAB_HOST" != *.* ]]; then
+            echo "GITLAB_HOST must be a domain (e.g., gitlab.com)"; exit 1; fi
+          if [[ "$GITLAB_PROJECT" != */* ]]; then
+            echo "GITLAB_PROJECT must be 'namespace/repo' (contains a slash)"; exit 1; fi
+
           git remote remove gitlab 2>/dev/null || true
           git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_PROJECT}.git"
+
+          # connectivity check (clear error if PAT/path wrong)
+          git ls-remote --heads gitlab >/dev/null
+          echo "✅ Remote reachable."
+
 
       - name: Push main + tags to GitLab
         run: |
           set -euo pipefail
-          git push gitlab refs/heads/main:refs/heads/main --force-with-lease
+          # fetch remote main if present (ignore if missing)
+          git fetch gitlab refs/heads/main:refs/remotes/gitlab/main || true
+
+          # Push main: try fast-forward first; if diverged, use force-with-lease safely
+          if git push gitlab HEAD:refs/heads/main; then
+            echo "Pushed main (fast-forward)."
+          else
+            echo "Diverged history. Trying --force-with-lease on main…"
+            git push gitlab HEAD:refs/heads/main --force-with-lease=refs/heads/main
+          fi
+
+          # Push tags with lease
           git push gitlab --tags --force-with-lease
 
       - name: Done
