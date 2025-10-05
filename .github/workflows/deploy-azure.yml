@@ -283,3 +283,42 @@ jobs:
             - Set ENABLE_HTTP=true to allow TCP 80/443.
             - AMA installed; syslog flows to LAW via DCR "${DCR}".
           TXT
+
+  mirror_to_gitlab:
+    name: Mirror to GitLab (non-blocking)
+    needs: deploy
+    if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Git identity
+        run: |
+          git config user.name "fedlin-ci"
+          git config user.email "ci@fedlin.com"
+
+      - name: Add GitLab remote
+        env:
+          GITLAB_HOST: 30282969
+          GITLAB_PROJECT: 75052681   # e.g. fedlinllc/fedlin-azure-secure-cicd
+          GITLAB_TOKEN: glpat-oF-cbNmJ_a4LxfKmxqRBK286MQp1OmkxMmhsCw.01.121srlvbq       # PAT with api + write_repository
+        run: |
+          set -euo pipefail
+          : "${GITLAB_HOST:?Set secret GITLAB_HOST (e.g., gitlab.com)}"
+          : "${GITLAB_PROJECT:?Set secret GITLAB_PROJECT (e.g., namespace/repo)}"
+          : "${GITLAB_TOKEN:?Set secret GITLAB_TOKEN (PAT with api,write_repository)}"
+          git remote remove gitlab 2>/dev/null || true
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_PROJECT}.git"
+
+      - name: Push main + tags to GitLab
+        run: |
+          set -euo pipefail
+          git push gitlab refs/heads/main:refs/heads/main --force-with-lease
+          git push gitlab --tags --force-with-lease
+
+      - name: Done
+        run: echo "✅ Mirrored to GitLab."
