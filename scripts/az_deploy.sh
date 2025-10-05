@@ -20,9 +20,9 @@ VM="fedlin-vm"
 AMA_NAME="AzureMonitorLinuxAgent"
 LOCATION="$REGION"
 
-# Replace with your public IP (for SSH restriction)
+# Replace with your public IP (for SSH restriction) -- now in CIDR /32
 MY_IP="
-$(curl -s ifconfig.me)"
+$(curl -s ifconfig.me)/32"
 SSH_PORT=22
 HTTPS_PORT=443
 
@@ -32,7 +32,7 @@ if [[ "$REGION" != "centralus" ]]; then
   exit 1
 fi
 if [[ "$VM_SIZE" != "Standard_B1s" ]]; then
-  echo "ERROR: VM size must be 'Standard_B1s' for free-tier compliance."
+  echo "ERROR: VM size must be 'Standard_B1_s' for free-tier compliance."
   exit 2
 fi
 
@@ -44,7 +44,8 @@ az group create --name "$RG" --location "$LOCATION" --output none
 echo "Creating Log Analytics Workspace ($LAW)..."
 az monitor log-analytics workspace create --resource-group "$RG" --workspace-name "$LAW" --location "$LOCATION" --sku "PerGB2018" --output none
 
-LAW_ID="$(az monitor log-analytics workspace show --resource-group "$RG" --workspace-name "$LAW" --query id -o tsv)"
+LAW_ID="
+$(az monitor log-analytics workspace show --resource-group "$RG" --workspace-name "$LAW" --query id -o tsv)"
 
 # --- VNet & Subnet ---
 echo "Creating VNet and Subnet..."
@@ -63,7 +64,8 @@ az network nsg rule create --resource-group "$RG" --nsg-name "$NSG" --name "Deny
 
 # --- NIC ---
 echo "Creating Network Interface ($NIC)..."
-SUBNET_ID="$(az network vnet subnet show --resource-group "$RG" --vnet-name "$VNET" --name "$SUBNET" --query id -o tsv)"
+SUBNET_ID="
+$(az network vnet subnet show --resource-group "$RG" --vnet-name "$VNET" --name "$SUBNET" --query id -o tsv)"
 az network nic create --resource-group "$RG" --name "$NIC" --subnet "$SUBNET_ID" --network-security-group "$NSG" --output none
 
 # --- VM ---
@@ -107,12 +109,14 @@ az monitor data-collection rule create --resource-group "$RG" --name "$DCR" --lo
   --rule-file "$DCR_JSON" --output none
 
 # Attach VM to DCR
-VM_ID="$(az vm show --resource-group "$RG" --name "$VM" --query id -o tsv)"
+VM_ID="
+$(az vm show --resource-group "$RG" --name "$VM" --query id -o tsv)"
 az monitor data-collection rule association create --resource-group "$RG" --data-collection-rule "$DCR" \
   --name "${VM}-dcr-assoc" --resource-id "$VM_ID" --output none
 
 # --- Print Public IP ---
-PUBLIC_IP="$(az vm list-ip-addresses --resource-group "$RG" --name "$VM" --query '[0].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)"
+PUBLIC_IP="
+$(az vm list-ip-addresses --resource-group "$RG" --name "$VM" --query '[0].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)"
 echo "VM Public IP: $PUBLIC_IP"
 
 echo "Deployment complete."
