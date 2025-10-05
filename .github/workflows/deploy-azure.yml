@@ -71,6 +71,17 @@ jobs:
           SUBNET_CIDR: ${{ env.SUBNET_CIDR }}
         run: |
           set -euo pipefail
+          # Ensure an SSH public key is available for VM creation
+          mkdir -p outputs
+          if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
+            echo "No SSH_PUBLIC_KEY secret found; generating a temporary keypair..."
+            mkdir -p .tmp_ssh
+            ssh-keygen -t ed25519 -N "" -f .tmp_ssh/id_ed25519 -C "Fedlin"
+            SSH_PUBLIC_KEY="$(cat .tmp_ssh/id_ed25519.pub)"
+            tar -czf outputs/temp_ssh_keypair.tgz -C .tmp_ssh id_ed25519 id_ed25519.pub
+          fi
+          printf '%s\n' "$SSH_PUBLIC_KEY" > .tmp_pubkey
+          echo "Using SSH key fingerprint: $(ssh-keygen -lf .tmp_pubkey | awk '{print $2}')"
 
           RG="${RESOURCE_PREFIX}-rg"
           LAW="${RESOURCE_PREFIX}-law"
@@ -224,7 +235,7 @@ jobs:
               --size "$VM_SIZE" \
               --admin-username "$SSH_USERNAME" \
               --authentication-type ssh \
-              --ssh-key-values "$SSH_PUBLIC_KEY" \
+              --ssh-key-values @.tmp_pubkey \
               --nics "$NIC" \
               --custom-data "$CLOUD_INIT" \
               --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
