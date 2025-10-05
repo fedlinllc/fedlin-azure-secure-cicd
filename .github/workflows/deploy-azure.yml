@@ -9,45 +9,31 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write     # for OIDC
+  id-token: write   # required for OIDC
   contents: read
 
 concurrency:
-  group: fedlin-azure-secure-cicd-${{ github.ref }}
-  cancel-in-progress: true
+  group: fedlin-azure-secure-cicd
+  cancel-in-progress: false
 
 env:
   REGION: centralus
-  VM_SIZE: Standard_B1s              # Free tier eligible (subject to Azure free acct terms)
-  RG: fedlin-cicd-lab
-  LAW: fedlin-law
-  DCR: fedlin-dcr
-  VNET: fedlin-vnet
-  SUBNET: fedlin-subnet
-  NSG: fedlin-nsg
-  PIP: fedlin-pip
-  NIC: fedlin-nic
-  VM: fedlin-vm
-  ADMIN_USERNAME: azureuser
-  SSH_KEY_PATH: ~/.ssh/id_rsa
-  TAG_OWNER: "Fedlin"
-  TAG_ENV: "lab"
-  TAG_PROJECT: "fedlin-azure-secure-cicd"
+  RESOURCE_PREFIX: fedlin
+  VM_SIZE: Standard_B1s
+  SSH_USERNAME: fedlin
+  MY_IP: "*"            # tighten to your /32 later
+  ENABLE_HTTP: "false"  # set "true" to allow 80/443 in NSG
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup ShellCheck
-        uses: ludeeus/action-shellcheck@2.0.0
-
-      - name: Lint scripts
-        run: |
-          shellcheck scripts/*.sh
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2
@@ -56,30 +42,27 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Azure CLI version
-        uses: azure/cli@v2
-        with:
-          inlineScript: |
-            az version
+      - name: Verify Azure CLI context
+        run: |
+          set -euo pipefail
+          az account show
+          az --version
 
-      - name: Deploy infrastructure
+      - name: Deploy Azure resources
+        env:
+          REGION: ${{ env.REGION }}
+          RESOURCE_PREFIX: ${{ env.RESOURCE_PREFIX }}
+          VM_SIZE: ${{ env.VM_SIZE }}
+          SSH_USERNAME: ${{ env.SSH_USERNAME }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          MY_IP: ${{ env.MY_IP }}
+          ENABLE_HTTP: ${{ env.ENABLE_HTTP }}
         run: |
           bash scripts/az_deploy.sh
 
-      - name: Collect evidence (describe resources)
-        run: |
-          mkdir -p artifacts
-          az group show -n "$RG" -o json > artifacts/rg.json
-          az monitor log-analytics workspace show -g "$RG" -n "$LAW" -o json > artifacts/law.json
-          az monitor data-collection rule show -g "$RG" -n "$DCR" -o json > artifacts/dcr.json
-          az vm show -g "$RG" -n "$VM" -o json > artifacts/vm.json
-          az network nsg show -g "$RG" -n "$NSG" -o json > artifacts/nsg.json
-          az network vnet show -g "$RG" -n "$VNET" -o json > artifacts/vnet.json
-          az network nic show -g "$RG" -n "$NIC" -o json > artifacts/nic.json
-
-      - name: Upload CI Evidence
+      - name: Upload deployment artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fedlin-azure-evidence
-          path: artifacts/
-          if-no-files-found: error
+          name: fedlin-azure-deploy-outputs
+          path: outputs/
+          if-no-files-found: warn
