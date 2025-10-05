@@ -20,7 +20,7 @@ env:
   REGION: eastus
   RESOURCE_PREFIX: fedlin
   VM_SIZE: Standard_B1s          # free/low-cost tier friendly
-  SSH_USERNAME: "jeremiah@fedlin"
+  SSH_USERNAME: "fedlin"
   MY_IP: "*"                     # tighten to your /32 later (e.g., "X.Y.Z.W/32")
   ENABLE_HTTP: "false"           # "true" opens 80/443 in NSG
   IMAGE_URN: almalinux:almalinux:9-gen2:latest
@@ -63,7 +63,7 @@ jobs:
           REGION: ${{ env.REGION }}
           RESOURCE_PREFIX: ${{ env.RESOURCE_PREFIX }}
           VM_SIZE: ${{ env.VM_SIZE }}
-          SSH_USERNAME: "jeremiah@fedlin"
+          SSH_USERNAME: "fedlin"
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
           MY_IP: ${{ env.MY_IP }}
           ENABLE_HTTP: ${{ env.ENABLE_HTTP }}
@@ -173,6 +173,22 @@ jobs:
           : "${IMAGE_URN:=procomputers:centos-9-stream:centos-9-stream-gen2:latest}"
           echo "Using IMAGE_URN=${IMAGE_URN}"
 
+          # Resolve exact AlmaLinux 9 Gen2 image version for this region (no ':latest')
+          echo "Resolving AlmaLinux 9 Gen2 in ${REGION}…"
+          ALMA_URN="$(az vm image list \
+            --location "${REGION}" \
+            --publisher almalinux \
+            --offer almalinux \
+            --sku 9-gen2 \
+            --all \
+            --query "sort_by(@, &version)[-1].urn" -o tsv || true)"
+          if [[ -z "${ALMA_URN:-}" ]]; then
+            echo "ERROR: No AlmaLinux 9 Gen2 image found in ${REGION}." >&2
+            exit 1
+          fi
+          echo "IMAGE_URN=${ALMA_URN}" >> "$GITHUB_ENV"
+          echo "Using IMAGE_URN=${ALMA_URN}"
+
           echo "==> Cloud-init hardening (EL9)"
           CLOUD_INIT="$(mktemp)"
           cat > "$CLOUD_INIT" <<EOF
@@ -184,7 +200,7 @@ jobs:
               groups: [ wheel ]
               shell: /bin/bash
               ssh_authorized_keys:
-                - ${SSH_PUBLIC_KEY}
+                - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ Fedlin
 
           package_update: true
           packages:
@@ -196,7 +212,7 @@ jobs:
             - sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
             - sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 2/' /etc/ssh/sshd_config
             - sed -i 's/^#\?LogLevel.*/LogLevel VERBOSE/' /etc/ssh/sshd_config
-            - restorecon -Rv /home/"jeremiah@fedlin"} || true
+            - restorecon -Rv /home/"fedlin"} || true
             - systemctl restart sshd
           EOF
 
@@ -204,7 +220,7 @@ jobs:
           if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
             echo "No SSH_PUBLIC_KEY found. Generating temporary keypair..."
             mkdir -p .tmp_ssh
-            ssh-keygen -t ed25519 -N "" -f .tmp_ssh/id_ed25519 -C "jeremiah@fedlin"
+            ssh-keygen -t ed25519 -N "" -f .tmp_ssh/id_ed25519 -C "fedlin"
             SSH_PUBLIC_KEY="$(cat .tmp_ssh/id_ed25519.pub)"
             echo "SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY}" >> "$GITHUB_ENV"
           fi
