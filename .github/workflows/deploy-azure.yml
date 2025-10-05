@@ -226,7 +226,7 @@ jobs:
               --size "$VM_SIZE" \
               --admin-username "$jeremiah@fedlin" \
               --authentication-type ssh \
-              --ssh-key-values "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzZZfzdMTu+bTmTmTN3cu837BwsuZJU3TW1U0VxHOOY jeremiah@fedlin" \
+              --ssh-key-values "'$SSH_PUBLIC_KEY'"
               --nics "$NIC" \
               --custom-data "$CLOUD_INIT" \
               --os-disk-name "fedlin-osdisk" \
