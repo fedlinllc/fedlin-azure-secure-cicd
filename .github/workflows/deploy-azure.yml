@@ -224,7 +224,7 @@ jobs:
               -n "$VM" \
               --image "${IMAGE_URN}" \
               --size "$VM_SIZE" \
-              --admin-username "$jeremiah@fedlin" \
+              --admin-username "jeremiah@fedlin" \
               --authentication-type ssh \
               --ssh-key-values "'$SSH_PUBLIC_KEY'"
               --nics "$NIC" \
