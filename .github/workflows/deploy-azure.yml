@@ -199,7 +199,7 @@ jobs:
               groups: [ wheel ]
               shell: /bin/bash
               ssh_authorized_keys:
-                - ${SSH_PUBLIC_KEY}
+                - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ Fedlin
 
           package_update: true
           packages:
