@@ -40,9 +40,9 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-id: 0cce1b1b-4a7b-490b-98d0-c37f10229830
           tenant-id: 37a995a8-b679-461e-950d-fb968d379ce5
-          subscription-id: 0cce1b1b-4a7b-490b-98d0-c37f10229830
+          subscription-id: d3c8b5d7-59b2-4e2c-92f6-0b87d5eb5bdb
 
       - name: Preflight checks
         env:
