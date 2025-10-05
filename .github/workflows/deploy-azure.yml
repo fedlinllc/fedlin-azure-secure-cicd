@@ -284,6 +284,64 @@ jobs:
             - AMA installed; syslog flows to LAW via DCR "${DCR}".
           TXT
 
+      - name: Collect & sanitize evidence (portfolio pack)
+        if: ${{ success() }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/raw evidence/safe
+
+          echo "==> Gather raw evidence"
+          az resource list -g "$RG" -o json > evidence/raw/resources.json
+          az network nsg rule list -g "$RG" --nsg-name "$NSG" -o json > evidence/raw/nsg_rules.json
+          az vm show -g "$RG" -n "$VM" -o json > evidence/raw/vm.json
+          az monitor log-analytics workspace show -g "$RG" -n "$LAW" -o json > evidence/raw/law.json || true
+          az monitor data-collection rule show -g "$RG" -n "$DCR" -o json > evidence/raw/dcr.json || true
+          az monitor data-collection rule association list \
+            --resource "$(az vm show -g "$RG" -n "$VM" --query id -o tsv)" -o json \
+            > evidence/raw/dcra.json || true
+
+          echo "==> Create human readable tables"
+          az resource list -g "$RG" -o table > evidence/raw/resources_table.txt
+          az network nsg rule list -g "$RG" --nsg-name "$NSG" -o table > evidence/raw/nsg_rules_table.txt
+
+          echo "==> Redact sensitive values"
+          redact() {
+            sed -E \
+              -e 's@/subscriptions/[^/"]+@/subscriptions/SUBSCRIPTION_REDACTED@g' \
+              -e 's/[0-9]{1,3}(\.[0-9]{1,3}){3}/IP_REDACTED/g' \
+              -e 's/"tenant(Id)?": *"[^"]+"/"tenant":"REDACTED"/g' \
+              -e 's/"clientId": *"[^"]+"/"clientId":"REDACTED"/g'
+          }
+          for f in evidence/raw/*; do
+            bn="$(basename "$f")"
+            redact < "$f" > "evidence/safe/$bn" || cp "$f" "evidence/safe/$bn"
+          done
+
+          echo "==> Add short summary"
+          {
+            echo "# Evidence Summary"
+            echo
+            echo "## VM"
+            jq -r '
+              {name,location} + {size:.hardwareProfile.vmSize} +
+              {image: ((.storageProfile.imageReference.publisher // "") + ":" +
+                       (.storageProfile.imageReference.offer // "") + ":" +
+                       (.storageProfile.imageReference.sku // ""))}
+            ' evidence/safe/vm.json 2>/dev/null || true
+            echo
+            echo "## NSG rules (first 20)"
+            head -n 20 evidence/raw/nsg_rules_table.txt 2>/dev/null || true
+          } > evidence/safe/README-summary.md
+
+      - name: Upload Evidence Pack (sanitized)
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedlin-evidence-pack
+          path: evidence/safe
+          if-no-files-found: warn
+          retention-days: 7
+
   mirror_to_gitlab:
     name: Mirror to GitLab (non-blocking)
     needs: deploy
