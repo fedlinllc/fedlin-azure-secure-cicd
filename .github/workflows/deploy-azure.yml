@@ -168,6 +168,10 @@ jobs:
               --public-ip-address "$PIP" -o json > outputs/nic_create.json
           fi
 
+          # Temporary safeguard: ensure IMAGE_URN is defined
+          : "${IMAGE_URN:=procomputers:centos-9-stream:centos-9-stream-gen2:latest}"
+          echo "Using IMAGE_URN=${IMAGE_URN}"
+
           echo "==> Cloud-init hardening (EL9)"
           CLOUD_INIT="$(mktemp)"
           cat > "$CLOUD_INIT" <<EOF
