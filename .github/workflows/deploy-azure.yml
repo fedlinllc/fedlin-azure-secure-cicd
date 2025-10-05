@@ -208,6 +208,12 @@ jobs:
 
           echo "==> Cloud-init hardening (EL9)"
           CLOUD_INIT="$(mktemp)"
+          # Ensure CLOUD_INIT is defined before use (set -u safe)
+          : "${CLOUD_INIT:=$(mktemp)}"
+          echo "CLOUD_INIT at: $CLOUD_INIT"
+
+          cat > "$CLOUD_INIT" <<EOF
+
           cat > "$CLOUD_INIT" <<EOF
           #cloud-config
           ssh_pwauth: false
