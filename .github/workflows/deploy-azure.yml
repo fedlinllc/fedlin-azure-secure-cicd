@@ -23,6 +23,7 @@ env:
   SSH_USERNAME: fedlin
   MY_IP: "*"                     # tighten to your /32 later (e.g., "X.Y.Z.W/32")
   ENABLE_HTTP: "false"           # "true" opens 80/443 in NSG
+  IMAGE_URN: almalinux:almalinux:9-gen2:latest
   VNET_CIDR: 10.10.0.0/16
   SUBNET_CIDR: 10.10.1.0/24
 
@@ -183,7 +184,7 @@ jobs:
               groups: [ wheel ]
               shell: /bin/bash
               ssh_authorized_keys:
-                - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzZZfzdMTu+bTmTmTN3cu837BwsuZJU3TW1U0VxHOOY jeremiah@fedlin
+                - ${SSH_PUBLIC_KEY}
 
           package_update: true
           packages:
@@ -199,19 +200,36 @@ jobs:
             - systemctl restart sshd
           EOF
 
-          echo "==> Ensure VM (CentOS/Alma 9)"
+          # --- Ensure SSH key and Alma image are set ---
+          if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
+            echo "No SSH_PUBLIC_KEY found. Generating temporary keypair..."
+            mkdir -p .tmp_ssh
+            ssh-keygen -t ed25519 -N "" -f .tmp_ssh/id_ed25519 -C "jeremiah@fedlin"
+            SSH_PUBLIC_KEY="$(cat .tmp_ssh/id_ed25519.pub)"
+            echo "SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY}" >> "$GITHUB_ENV"
+          fi
+
+          if [[ -z "${IMAGE_URN:-}" ]]; then
+            IMAGE_URN="almalinux:almalinux:9-gen2:latest"
+            echo "IMAGE_URN=${IMAGE_URN}" >> "$GITHUB_ENV"
+          fi
+
+          echo "Using IMAGE_URN=${IMAGE_URN}"
+          echo "Using SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY:0:40}..."
+
+          echo "==> Ensure VM (AlmaLinux 9)"
           if ! az vm show -g "$RG" -n "$VM" >/dev/null 2>&1; then
             az vm create \
               -g "$RG" \
               -n "$VM" \
               --image "${IMAGE_URN}" \
               --size "$VM_SIZE" \
-              --admin-username "$SSH_USERNAME" \
+              --admin-username "$jeremiah@fedlin" \
               --authentication-type ssh \
-              --ssh-key-values "$SSH_PUBLIC_KEY" \
+              --ssh-key-values "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzZZfzdMTu+bTmTmTN3cu837BwsuZJU3TW1U0VxHOOY jeremiah@fedlin" \
               --nics "$NIC" \
               --custom-data "$CLOUD_INIT" \
-              --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
+              --os-disk-name "fedlin-osdisk" \
               --public-ip-address "$PIP" \
               -o json > outputs/vm_create.json
           else
