@@ -192,15 +192,10 @@ jobs:
             - systemctl restart sshd
           EOF
 
-      - name: Accept Rocky 9 image terms (idempotent)
-        run: |
-          set -euo pipefail
-          az vm image terms accept --urn "resf:rockylinux-x86_64:9-base:latest" || true
-
-          echo "==> Ensure VM (Rocky 9)"
+          echo "==> Ensure VM (CentOS 9)"
           if ! az vm show -g "$RG" -n "$VM" 1>/dev/null 2>&1; then
             az vm create -g "$RG" -n "$VM" \
-              --image "resf:rockylinux-x86_64:9-base:latest" \
+              --image "procomputers:centos-9-stream:centos-9-stream-gen2:latest"
               --size "$VM_SIZE" \
               --admin-username "$SSH_USERNAME" \
               --authentication-type ssh \
