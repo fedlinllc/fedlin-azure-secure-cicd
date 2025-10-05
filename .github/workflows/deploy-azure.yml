@@ -20,7 +20,7 @@ env:
   REGION: eastus
   RESOURCE_PREFIX: fedlin
   VM_SIZE: Standard_B1s          # free/low-cost tier friendly
-  SSH_USERNAME: jeremiah@fedlin
+  SSH_USERNAME: "jeremiah@fedlin"
   MY_IP: "*"                     # tighten to your /32 later (e.g., "X.Y.Z.W/32")
   ENABLE_HTTP: "false"           # "true" opens 80/443 in NSG
   IMAGE_URN: almalinux:almalinux:9-gen2:latest
