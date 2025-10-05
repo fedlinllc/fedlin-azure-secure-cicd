@@ -288,6 +288,14 @@ jobs:
         if: ${{ success() }}
         run: |
           set -euo pipefail
+          # re-derive names for this step (set -u safe)
+          : "${RESOURCE_PREFIX:?RESOURCE_PREFIX must be set}"
+          RG="${RESOURCE_PREFIX}-rg"
+          LAW="${RESOURCE_PREFIX}-law"
+          DCR="${RESOURCE_PREFIX}-dcr"
+          NSG="${RESOURCE_PREFIX}-nsg"
+          VM="${RESOURCE_PREFIX}-vm"
+
           mkdir -p evidence/raw evidence/safe
 
           echo "==> Gather raw evidence"
@@ -332,6 +340,7 @@ jobs:
             echo "## NSG rules (first 20)"
             head -n 20 evidence/raw/nsg_rules_table.txt 2>/dev/null || true
           } > evidence/safe/README-summary.md
+
 
       - name: Upload Evidence Pack (sanitized)
         if: ${{ success() }}
