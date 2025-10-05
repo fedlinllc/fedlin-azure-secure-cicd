@@ -303,7 +303,7 @@ jobs:
 
       - name: Add GitLab remote
         env:
-          GITLAB_HOST: ghitlab.com
+          GITLAB_HOST: gitlab.com
           GITLAB_PROJECT: fedlinllc/fedlin-azure-secure-cicd   # e.g. fedlinllc/fedlin-azure-secure-cicd
           GITLAB_TOKEN: glpat-oF-cbNmJ_a4LxfKmxqRBK286MQp1OmkxMmhsCw.01.121srlvbq       # PAT with api + write_repository
         run: |
