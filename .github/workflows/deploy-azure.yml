@@ -20,7 +20,7 @@ env:
   REGION: eastus
   RESOURCE_PREFIX: fedlin
   VM_SIZE: Standard_B1s          # free/low-cost tier friendly
-  SSH_USERNAME: fedlin
+  SSH_USERNAME: jeremiah@fedlin
   MY_IP: "*"                     # tighten to your /32 later (e.g., "X.Y.Z.W/32")
   ENABLE_HTTP: "false"           # "true" opens 80/443 in NSG
   IMAGE_URN: almalinux:almalinux:9-gen2:latest
@@ -63,7 +63,7 @@ jobs:
           REGION: ${{ env.REGION }}
           RESOURCE_PREFIX: ${{ env.RESOURCE_PREFIX }}
           VM_SIZE: ${{ env.VM_SIZE }}
-          SSH_USERNAME: ${{ env.SSH_USERNAME }}
+          SSH_USERNAME: "jeremiah@fedlin"
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
           MY_IP: ${{ env.MY_IP }}
           ENABLE_HTTP: ${{ env.ENABLE_HTTP }}
@@ -179,7 +179,7 @@ jobs:
           #cloud-config
           ssh_pwauth: false
           users:
-            - name: ${SSH_USERNAME}
+            - name: "jeremiah@fedlin"
               sudo: ALL=(ALL) NOPASSWD:ALL
               groups: [ wheel ]
               shell: /bin/bash
@@ -196,7 +196,7 @@ jobs:
             - sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
             - sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 2/' /etc/ssh/sshd_config
             - sed -i 's/^#\?LogLevel.*/LogLevel VERBOSE/' /etc/ssh/sshd_config
-            - restorecon -Rv /home/${SSH_USERNAME} || true
+            - restorecon -Rv /home/"jeremiah@fedlin"} || true
             - systemctl restart sshd
           EOF
 
