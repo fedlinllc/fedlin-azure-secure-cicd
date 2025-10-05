@@ -13,7 +13,7 @@ SUBNET="fedlin-subnet"
 NSG="fedlin-nsg"
 VMNAME="fedlin-cisvm"
 ADMINUSER="azureuser"
-IMAGEREF="rockylinux:rockylinux:9-lvm:latest"
+IMAGEREF="almalinux:almalinux:9-gen2:latest"
 SIZE="Standard_B1s"
 
 # Guardrails: fail if region/size are wrong
