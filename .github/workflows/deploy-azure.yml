@@ -239,8 +239,8 @@ jobs:
               --nics "$NIC" \
               --custom-data "$CLOUD_INIT" \
               --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
-              --public-ip-address "$PIP" \
               -o json > outputs/vm_create.json
+
           else
             az vm show -g "$RG" -n "$VM" -o json > outputs/vm_show.json
           fi
