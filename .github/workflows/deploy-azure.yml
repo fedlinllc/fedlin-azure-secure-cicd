@@ -1,4 +1,3 @@
-cat > scripts/az_deploy.sh <<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
 
