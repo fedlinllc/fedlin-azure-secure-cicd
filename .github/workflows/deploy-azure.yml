@@ -168,82 +168,87 @@ jobs:
               --public-ip-address "$PIP" -o json > outputs/nic_create.json
           fi
 
-          echo "==> Cloud-init hardening (Rocky Linux 9)"
-          CLOUD_INIT="$(mktemp)"
-          cat > "$CLOUD_INIT" <<EOF
-          #cloud-config
-          ssh_pwauth: false
-          users:
-            - name: ${SSH_USERNAME}
-              sudo: ALL=(ALL) NOPASSWD:ALL
-              groups: [ wheel ]
-              shell: /bin/bash
-              ssh_authorized_keys:
-                - ${SSH_PUBLIC_KEY}
-          package_update: true
-          packages:
-            - audit
-            - policycoreutils-python-utils
-          runcmd:
-            - systemctl enable --now auditd
-            - sed -i 's/^#\\?ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
-            - sed -i 's/^#\\?ClientAliveCountMax.*/ClientAliveCountMax 2/' /etc/ssh/sshd_config
-            - sed -i 's/^#\\?LogLevel.*/LogLevel VERBOSE/' /etc/ssh/sshd_config
-            - systemctl restart sshd
-          EOF
+echo "==> Cloud-init hardening (EL9)"
+CLOUD_INIT="$(mktemp)"
+cat > "$CLOUD_INIT" <<EOF
+#cloud-config
+ssh_pwauth: false
+users:
+  - name: ${SSH_USERNAME}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: [ wheel ]
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${SSH_PUBLIC_KEY}
 
-          echo "==> Ensure VM (CentOS 9)"
-          if ! az vm show -g "$RG" -n "$VM" 1>/dev/null 2>&1; then
-            az vm create -g "$RG" -n "$VM" \
-              --image "procomputers:centos-9-stream:centos-9-stream-gen2:latest"
-              --size "$VM_SIZE" \
-              --admin-username "$SSH_USERNAME" \
-              --authentication-type ssh \
-              --ssh-key-values <(echo "$SSH_PUBLIC_KEY") \
-              --nics "$NIC" \
-              --custom-data "$CLOUD_INIT" \
-              --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
-              --public-ip-address "$PIP" \
-              -o json > outputs/vm_create.json
-          else
-            az vm show -g "$RG" -n "$VM" -o json > outputs/vm_show.json
-          fi
+package_update: true
+packages:
+  - audit
+  - policycoreutils-python-utils
 
-          PUBLIC_IP="$(az network public-ip show -g "$RG" -n "$PIP" --query ipAddress -o tsv)"
-          printf '{"publicIp":"%s"}\n' "$PUBLIC_IP" > outputs/public_ip.json
+runcmd:
+  - systemctl enable --now auditd
+  - sed -i 's/^#\?ClientAliveInterval.*/ClientAliveInterval 300/' /etc/ssh/sshd_config
+  - sed -i 's/^#\?ClientAliveCountMax.*/ClientAliveCountMax 2/' /etc/ssh/sshd_config
+  - sed -i 's/^#\?LogLevel.*/LogLevel VERBOSE/' /etc/ssh/sshd_config
+  - restorecon -Rv /home/${SSH_USERNAME} || true
+  - systemctl restart sshd
+EOF
 
-          echo "==> Ensure Azure Monitor Agent (AMA) + DCR Association"
-          if ! az vm extension show -g "$RG" --vm-name "$VM" --name "$AMA_NAME" --query provisioningState -o tsv 2>/dev/null; then
-            az vm extension set -g "$RG" --vm-name "$VM" \
-              --publisher Microsoft.Azure.Monitor \
-              --name "$AMA_NAME" \
-              -o json > outputs/ama_install.json
-          fi
+echo "==> Ensure VM (CentOS/Alma 9)"
+if ! az vm show -g "$RG" -n "$VM" >/dev/null 2>&1; then
+  az vm create \
+    -g "$RG" \
+    -n "$VM" \
+    --image "${IMAGE_URN}" \
+    --size "$VM_SIZE" \
+    --admin-username "$SSH_USERNAME" \
+    --authentication-type ssh \
+    --ssh-key-values "$SSH_PUBLIC_KEY" \
+    --nics "$NIC" \
+    --custom-data "$CLOUD_INIT" \
+    --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
+    --public-ip-address "$PIP" \
+    -o json > outputs/vm_create.json
+else
+  az vm show -g "$RG" -n "$VM" -o json > outputs/vm_show.json
+fi
 
-          VM_ID="$(az vm show -g "$RG" -n "$VM" --query id -o tsv)"
-          if ! az monitor data-collection rule association show --association-name "$DCRA" --resource "$VM_ID" 1>/dev/null 2>&1; then
-            az monitor data-collection rule association create \
-              --association-name "$DCRA" \
-              --resource "$VM_ID" \
-              --rule-id "$DCR_ID" -o json > outputs/dcra_create.json
-          fi
+PUBLIC_IP="$(az network public-ip show -g "$RG" -n "$PIP" --query ipAddress -o tsv)"
+printf '{"publicIp":"%s"}\n' "$PUBLIC_IP" > outputs/public_ip.json
 
-          echo "==> Capture evidence"
-          az resource list -g "$RG" -o table | tee outputs/resources_table.txt
-          az network nsg rule list -g "$RG" --nsg-name "$NSG" -o table | tee outputs/nsg_rules.txt
-          cat > outputs/ssh_instructions.txt <<TXT
-          SSH:
-            ssh ${SSH_USERNAME}@${PUBLIC_IP}
+echo "==> Ensure Azure Monitor Agent (AMA) + DCR Association"
+if ! az vm extension show -g "$RG" --vm-name "$VM" --name "$AMA_NAME" \
+     --query provisioningState -o tsv 2>/dev/null; then
+  az vm extension set \
+    -g "$RG" \
+    --vm-name "$VM" \
+    --publisher Microsoft.Azure.Monitor \
+    --name "$AMA_NAME" \
+    -o json > outputs/ama_install.json
+fi
 
-          Notes:
-            - Restrict SSH to your /32 by setting env.MY_IP (e.g., "X.Y.Z.W/32").
-            - Set ENABLE_HTTP=true to allow TCP 80/443.
-            - AMA installed; syslog flows to LAW via DCR "${DCR}".
-          TXT
+VM_ID="$(az vm show -g "$RG" -n "$VM" --query id -o tsv)"
+if ! az monitor data-collection rule association show \
+       --association-name "$DCRA" \
+       --resource "$VM_ID" >/dev/null 2>&1; then
+  az monitor data-collection rule association create \
+    --association-name "$DCRA" \
+    --resource "$VM_ID" \
+    --rule-id "$DCR_ID" \
+    -o json > outputs/dcra_create.json
+fi
 
-      - name: Upload deployment artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: fedlin-azure-deploy-outputs
-          path: outputs/
-          if-no-files-found: warn
+echo "==> Capture evidence"
+az resource list -g "$RG" -o table | tee outputs/resources_table.txt
+az network nsg rule list -g "$RG" --nsg-name "$NSG" -o table | tee outputs/nsg_rules.txt
+
+cat > outputs/ssh_instructions.txt <<TXT
+SSH:
+  ssh ${SSH_USERNAME}@${PUBLIC_IP}
+
+Notes:
+  - Restrict SSH to your /32 by setting env.MY_IP (e.g., "1.2.3.4/32").
+  - Set ENABLE_HTTP=true to allow TCP 80/443.
+  - AMA installed; syslog flows to LAW via DCR "${DCR}".
+TXT
