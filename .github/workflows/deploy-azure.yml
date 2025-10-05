@@ -47,7 +47,7 @@ jobs:
 
       - name: Preflight checks
         env:
-          SSH_PUBLIC_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ github-anthracite-iv
+          SSH_PUBLIC_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ github-anthracite-iv"
 
         run: |
           set -euo pipefail
