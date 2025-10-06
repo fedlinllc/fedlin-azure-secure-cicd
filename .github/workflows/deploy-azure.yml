@@ -51,7 +51,7 @@ jobs:
           subscription-id: d3c8b5d7-59b2-4e2c-92f6-0b87d5eb5bdb
 
       - name: Preflight checks
-        env:
+        
           SSH_PUBLIC_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ github-anthracite-iv"
 
         run: |
@@ -74,6 +74,7 @@ jobs:
           ENABLE_HTTP: ${{ env.ENABLE_HTTP }}
           VNET_CIDR: ${{ env.VNET_CIDR }}
           SUBNET_CIDR: ${{ env.SUBNET_CIDR }}
+          OPEN_SSH: ${{ inputs.open_ssh || 'false' }}
         run: |
           set -euo pipefail
           # Ensure an SSH public key is available for VM creation
@@ -161,7 +162,7 @@ jobs:
           az network nsg show -g "$RG" -n "$NSG" 1>/dev/null 2>&1 || \
             az network nsg create -g "$RG" -n "$NSG" -o json > outputs/nsg_create.json
 
-          if [[ "${OPEN_SSH}" == "true" ]]; then
+          if [[ "${OPEN_SSH:-false}" == "true" ]]; then
             # Gather source CIDRs (space-separated). If none provided, detect a single /32.
             SRC_PREFIXES_RAW="${MY_IP:-}"
             if [[ -z "$SRC_PREFIXES_RAW" || "$SRC_PREFIXES_RAW" == "*" ]]; then
@@ -198,7 +199,7 @@ jobs:
           fi
 
           # Optional web openings (HTTP/HTTPS) when ENABLE_HTTP=true (unchanged)
-          if [[ "${ENABLE_HTTP}" == "true" ]]; then
+          if [[ "${ENABLE_HTTP:-false}" == "true" ]]; then
             az network nsg rule show -g "$RG" --nsg-name "$NSG" -n Allow-HTTP 1>/dev/null 2>&1 || \
               az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTP \
                 --priority 1010 --direction Inbound --access Allow --protocol Tcp \
@@ -407,6 +408,10 @@ jobs:
           GITLAB_TOKEN: glpat-oF-cbNmJ_a4LxfKmxqRBK286MQp1OmkxMmhsCw.01.121srlvbq       # PAT with api + write_repository
         run: |
           set -euo pipefail
+          OPEN_SSH="${OPEN_SSH:-false}"
+          MY_IP="${MY_IP:-}"
+          ENABLE_HTTP="${ENABLE_HTTP:-false}"
+
           : "${GITLAB_HOST:?Set secret GITLAB_HOST (e.g., gitlab.com)}"
           : "${GITLAB_PROJECT:?Set secret GITLAB_PROJECT (e.g., namespace/repo)}"
           : "${GITLAB_TOKEN:?Set secret GITLAB_TOKEN (PAT with api,write_repository)}"
