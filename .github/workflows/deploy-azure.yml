@@ -165,16 +165,7 @@ jobs:
             # Allow SSH from MY_IP only (default inbound is deny on unused rules)
             az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-SSH \
               --priority 1000 --direction Inbound --access Allow --protocol Tcp \
-              --destination-port-ranges 22 --source-address-prefixes "$MY_IP" 1>/dev/null
-
-            if [[ "${ENABLE_HTTP}" == "true" ]]; then
-              az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTP \
-                --priority 1010 --direction Inbound --access Allow --protocol Tcp \
-                --destination-port-ranges 80 --source-address-prefixes Internet 1>/dev/null
-              az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTPS \
-                --priority 1020 --direction Inbound --access Allow --protocol Tcp \
-                --destination-port-ranges 443 --source-address-prefixes Internet 1>/dev/null
-            fi
+              --destination-port-ranges 22 --source-address-prefixes "${MY_IP:-Internet}" 1>/dev/null
           fi
 
           # Ensure/Update Allow-SSH (priority 1000) on port 22 for the /32 list
