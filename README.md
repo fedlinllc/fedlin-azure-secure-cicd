@@ -1,7 +1,12 @@
 # Fedlin Azure Secure CI/CD (Self-Contained)
 
-An open-source pipeline that uses **GitHub Actions + Azure OIDC** to deploy an **AlmaLinux 9 Gen2** VM on Azure and wire it to **Log Analytics** via **Azure Monitor Agent (AMA)** and a **Data Collection Rule (DCR)**.  
-This project focuses on **clean deployment + telemetry**. The follow-on project will cover **hardening / compliance** (CIS, OpenSCAP + Ansible).
+[An open-source pipeline that uses **GitHub Actions + Azure OIDC** to deploy an **AlmaLinux 9 Gen2** VM on Azure and wire it to **Log Analytics** via **Azure Monitor Agent (AMA)** and a **Data Collection Rule (DCR)**.  
+This project focuses on **clean deployment + telemetry**. The follow-on project will cover **hardening / compliance** (CIS, OpenSCAP + Ansible).]
+
+- Azure CLI ≥ 2.60 (`az version`)
+- GitHub repo admin to add OIDC IDs + secrets
+- One-time RBAC rights at RG scope (Owner or User Access Administrator) to grant the Service Principal **Contributor**
+
 
 ---
 
