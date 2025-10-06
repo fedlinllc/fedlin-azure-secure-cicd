@@ -86,7 +86,7 @@ jobs:
           RESOURCE_PREFIX: ${{ env.RESOURCE_PREFIX }}
           VM_SIZE: ${{ env.VM_SIZE }}
           SSH_USERNAME: "fedlin"
-          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          SSH_PUBLIC_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ github-anthracite-iv"
           MY_IP: ${{ inputs.ssh_cidr || secrets.MY_IP || vars.MY_IP || '' }}
           ENABLE_HTTP: ${{ env.ENABLE_HTTP }}
           VNET_CIDR: ${{ env.VNET_CIDR }}
@@ -278,18 +278,18 @@ jobs:
           echo "==> Ensure VM (AlmaLinux 9)"
           if ! az vm show -g "$RG" -n "$VM" >/dev/null 2>&1; then
             az vm create \
-              -g "$RG" \
-              -n "$VM" \
+              -g "$RG" -n "$VM" \
               --image "${IMAGE_URN}" \
               --size "$VM_SIZE" \
               --admin-username "$SSH_USERNAME" \
               --authentication-type ssh \
-              --ssh-key-values @.tmp_pubkey \
+              --ssh-key-values "$SSH_PUBLIC_KEY" \
               --nics "$NIC" \
               --custom-data "$CLOUD_INIT" \
               --os-disk-name "${RESOURCE_PREFIX}-osdisk" \
+              --public-ip-address "$PIP" \
               -o json > outputs/vm_create.json
-
+              
           else
             az vm show -g "$RG" -n "$VM" -o json > outputs/vm_show.json
           fi
