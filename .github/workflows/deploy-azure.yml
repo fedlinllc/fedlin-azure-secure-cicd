@@ -6,6 +6,11 @@ on:
     paths:
       - ".github/workflows/deploy-azure.yml"
   workflow_dispatch:
+     inputs:
+      ssh_cidr:
+             description: "CIDR(s) allowed for SSH this run (e.g., 203.0.113.4/32 or '203.0.113.4/32 198.51.100.7/32')"
+             required: false
+             default: ""
 
 permissions:
   id-token: write    # OIDC to Azure
@@ -65,7 +70,7 @@ jobs:
           VM_SIZE: ${{ env.VM_SIZE }}
           SSH_USERNAME: "fedlin"
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
-          MY_IP: ${{ env.MY_IP }}
+          MY_IP: MY_IP: ${{ inputs.ssh_cidr || secrets.MY_IP || vars.MY_IP || '' }}
           ENABLE_HTTP: ${{ env.ENABLE_HTTP }}
           VNET_CIDR: ${{ env.VNET_CIDR }}
           SUBNET_CIDR: ${{ env.SUBNET_CIDR }}
