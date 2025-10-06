@@ -54,19 +54,20 @@ This project focuses on **clean deployment + telemetry**. The follow-on project 
 > We intentionally **skip** NSG rule screenshots and Azure Monitor *pipelines (preview)* since they’re not part of this baseline.
 
 - **GitHub Actions – successful run**  
-  ![Actions Success](docs/media/gh-actions-success.png)
+<img width="1838" height="902" alt="Screenshot from 2025-10-05 18-54-44" src="https://github.com/user-attachments/assets/7d03f395-fa3e-4866-847d-9bdeac0a487e" />
+
 
 - **Azure VM Overview (list)**  
-  ![VM Overview](docs/media/vm-overview.png)
+ <img width="1838" height="902" alt="Screenshot from 2025-10-05 18-56-03" src="https://github.com/user-attachments/assets/53f23d47-f185-4de7-a085-8dcec7d755c2" />
+
 
 - **Log Analytics Workspaces (list)**  
-  ![LAW Workspaces](docs/media/law-workspaces.png)
+<img width="1907" height="929" alt="Screenshot from 2025-10-05 22-26-38" src="https://github.com/user-attachments/assets/dc724697-62d2-468a-b940-88df4d032a3f" />
+
 
 - **GitLab mirror — repository view**  
-  ![GitLab Mirror](docs/media/gitlab-mirror.png)
+<img width="1907" height="929" alt="Screenshot from 2025-10-05 22-33-55" src="https://github.com/user-attachments/assets/31b80db8-f223-42ed-9eba-dacd6e5d4bff" />
 
-- **GitLab — Protected branch settings (main)**  
-  ![GitLab Protected Main](docs/media/gitlab-protected-main.png)
 
 > The workflow also uploads a sanitized artifact named **`fedlin-evidence-pack`** for download from the Actions run.
 
