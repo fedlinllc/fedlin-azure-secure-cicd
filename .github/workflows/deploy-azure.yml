@@ -176,19 +176,21 @@ jobs:
 
           echo "==> Ensure NSG with CIS-style rules"
 
-          # Resolve the actual NSG attached to the VM (avoid drift)
+          # Resolve NIC & attached NSG (so we don't drift on names)
           NIC_ID="$(az vm show -g "$RG" -n "$VM" --query 'networkProfile.networkInterfaces[0].id' -o tsv)"
-          ATTACHED_NSG_ID="$(az network nic show --ids "$NIC_ID" --query 'networkSecurityGroup.id' -o tsv || true)"
-          if [[ -n "${ATTACHED_NSG_ID:-}" ]]; then
-            NSG="${ATTACHED_NSG_ID##*/}"
+          CUR_NSG_ID="$(az network nic show --ids "$NIC_ID" --query 'networkSecurityGroup.id' -o tsv || true)"
+
+          if [[ -n "${CUR_NSG_ID:-}" ]]; then
+            NSG="${CUR_NSG_ID##*/}"
           else
-            # Fallback: ensure NSG by expected name and attach it to NIC if missing
-            az network nsg show -g "$RG" -n "$NSG" 1>/dev/null 2>&1 || \
+            # Ensure NSG exists, then attach to NIC (no line continuations)
+            if ! az network nsg show -g "$RG" -n "$NSG" >/dev/null 2>&1; then
               az network nsg create -g "$RG" -n "$NSG" -o json > outputs/nsg_create.json
-            az network nic update --ids "$NIC_ID" --network-security-group "$NSG" 1>/dev/null
+            fi
+            az network nic update --ids "$NIC_ID" --network-security-group "$NSG" >/dev/null
           fi
 
-          # --- STRICT /32 ENFORCEMENT FOR SSH ---
+          # --- STRICT /32 ENFORCEMENT FOR SSH SOURCES ---
           SRC_PREFIXES_RAW="${MY_IP:-}"
           if [[ -z "$SRC_PREFIXES_RAW" || "$SRC_PREFIXES_RAW" == "*" ]]; then
             DETECTED_IP="$(curl -fsSL https://api.ipify.org || curl -fsSL https://ifconfig.me || true)"
@@ -198,12 +200,39 @@ jobs:
             fi
             SRC_PREFIXES_RAW="${DETECTED_IP}/32"
           fi
-          read -r -a SRC_ARR <<< "$SRC_PREFIXES_RAW"
+
+          IFS=' ' read -r -a SRC_ARR <<< "$SRC_PREFIXES_RAW"
           for cidr in "${SRC_ARR[@]}"; do
             if [[ ! "$cidr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/32$ ]]; then
               echo "ERROR: ssh_cidr must be one or more IPv4 /32 CIDRs (space-separated). Offending: '$cidr'." >&2
               exit 1
             fi
+          done
+
+          # Ensure/Update Allow-SSH (priority 1000) on port 22 for the /32 list
+          if az network nsg rule show -g "$RG" --nsg-name "$NSG" -n Allow-SSH >/dev/null 2>&1; then
+            az network nsg rule update -g "$RG" --nsg-name "$NSG" -n Allow-SSH \
+              --priority 1000 --direction Inbound --access Allow --protocol Tcp \
+              --destination-port-ranges 22 --source-address-prefixes "${SRC_ARR[@]}" >/dev/null
+          else
+            az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-SSH \
+              --priority 1000 --direction Inbound --access Allow --protocol Tcp \
+              --destination-port-ranges 22 --source-address-prefixes "${SRC_ARR[@]}" >/dev/null
+          fi
+
+          # Optional web openings (HTTP/HTTPS)
+          if [[ "${ENABLE_HTTP:-false}" == "true" ]]; then
+            if ! az network nsg rule show -g "$RG" --nsg-name "$NSG" -n Allow-HTTP >/dev/null 2>&1; then
+              az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTP \
+                --priority 1010 --direction Inbound --access Allow --protocol Tcp \
+                --destination-port-ranges 80 --source-address-prefixes Internet >/dev/null
+            fi
+            if ! az network nsg rule show -g "$RG" --nsg-name "$NSG" -n Allow-HTTPS >/dev/null 2>&1; then
+              az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTPS \
+                --priority 1020 --direction Inbound --access Allow --protocol Tcp \
+                --destination-port-ranges 443 --source-address-prefixes Internet >/dev/null
+            fi
+          fi
 
 
           # Ensure/Update Allow-SSH (priority 1000) on port 22 to the /32 list
