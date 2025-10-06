@@ -51,17 +51,34 @@ jobs:
           subscription-id: d3c8b5d7-59b2-4e2c-92f6-0b87d5eb5bdb
 
       - name: Preflight checks
-        
+        env:
           SSH_PUBLIC_KEY: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHSAmyIPFw2Ms25cOb2xhCw7liSrmVn9vUAUUCTPIfEZ github-anthracite-iv"
-
         run: |
           set -euo pipefail
-          az account show 1>/dev/null
+          echo "==> Preflight: SSH public key"
+
+          # Must exist (workflows from forks won't have secrets)
           if [[ -z "${SSH_PUBLIC_KEY:-}" ]]; then
-            echo "ERROR: SSH_PUBLIC_KEY GitHub secret is not set." >&2
+            echo "ERROR: SSH_PUBLIC_KEY secret is missing or empty.
+          Set it in: Settings → Secrets and variables → Actions → New repository secret (SSH_PUBLIC_KEY).
+          Value must be the *public* key line from ~/.ssh/<name>.pub (e.g., 'ssh-ed25519 AAAA... comment')." >&2
             exit 1
           fi
-          mkdir -p outputs
+
+          # Normalize and basic validation
+          SSH_PUBLIC_KEY="$(echo -n "$SSH_PUBLIC_KEY" | tr -d '\r')"
+          if grep -q "PRIVATE KEY" <<<"$SSH_PUBLIC_KEY"; then
+            echo "ERROR: You pasted a PRIVATE key. Use the .pub public key instead." >&2
+            exit 1
+          fi
+          if ! [[ "$SSH_PUBLIC_KEY" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521))\  ]]; then
+            echo "ERROR: SSH_PUBLIC_KEY doesn't look like an OpenSSH public key line." >&2
+            exit 1
+          fi
+
+          # Mask in logs and confirm type
+          echo "::add-mask::$SSH_PUBLIC_KEY"
+          echo "OK: Public key detected (type: ${SSH_PUBLIC_KEY%% *})"
 
       - name: Deploy Azure resources (VNET, NSG, VM, LAW, DCR, AMA)
         env:
