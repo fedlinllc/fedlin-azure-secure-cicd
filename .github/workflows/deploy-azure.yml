@@ -152,15 +152,17 @@ jobs:
           fi
 
           echo "==> Ensure NSG with CIS-style rules"
-          # Create NSG if missing
+          # Create the NSG if missing
           az network nsg show -g "$RG" -n "$NSG" 1>/dev/null 2>&1 || \
             az network nsg create -g "$RG" -n "$NSG" -o json > outputs/nsg_create.json
 
-          # Source prefix for SSH: prefer MY_IP (/32). If unset or "*", use Internet.
-          SRC_PREFIX="${MY_IP:-Internet}"
-          [[ "$SRC_PREFIX" == "*" ]] && SRC_PREFIX="Internet"
+          # Source for SSH: prefer /32 from MY_IP; treat "*" or empty as Internet
+          SRC_PREFIX="${MY_IP:-}"
+          if [[ -z "$SRC_PREFIX" || "$SRC_PREFIX" == "*" ]]; then
+            SRC_PREFIX="Internet"
+          fi
 
-          # Ensure SSH rule (create/update)
+          # Ensure/Update Allow-SSH (priority 1000)
           if az network nsg rule show -g "$RG" --nsg-name "$NSG" -n Allow-SSH 1>/dev/null 2>&1; then
             az network nsg rule update -g "$RG" --nsg-name "$NSG" -n Allow-SSH \
               --priority 1000 --direction Inbound --access Allow --protocol Tcp \
@@ -171,7 +173,7 @@ jobs:
               --destination-port-ranges 22 --source-address-prefixes "$SRC_PREFIX" 1>/dev/null
           fi
 
-          # Optional HTTP/HTTPS
+          # Optional web openings (HTTP/HTTPS) when ENABLE_HTTP=true
           if [[ "${ENABLE_HTTP}" == "true" ]]; then
             az network nsg rule show -g "$RG" --nsg-name "$NSG" -n Allow-HTTP 1>/dev/null 2>&1 || \
               az network nsg rule create -g "$RG" --nsg-name "$NSG" -n Allow-HTTP \
@@ -184,16 +186,6 @@ jobs:
                 --destination-port-ranges 443 --source-address-prefixes Internet 1>/dev/null
           fi
 
-
-          echo "==> Ensure Public IP + NIC"
-          az network public-ip show -g "$RG" -n "$PIP" >/dev/null 2>&1 || \
-            az network public-ip create -g "$RG" -n "$PIP" --allocation-method Static --sku Standard -o json > outputs/pip_create.json
-
-          if ! az network nic show -g "$RG" -n "$NIC" >/dev/null 2>&1; then
-            SUBNET_ID="$(az network vnet subnet show -g "$RG" --vnet-name "$VNET" -n "$SUBNET" --query id -o tsv)"
-            az network nic create -g "$RG" -n "$NIC" --subnet "$SUBNET_ID" --network-security-group "$NSG" \
-              --public-ip-address "$PIP" -o json > outputs/nic_create.json
-          fi
 
           # Fallback Alma 9 Gen2 image if resolver finds nothing (no ':latest')
           : "${IMAGE_URN:=almalinux:almalinux-x86_64:9-gen2:9.6.202505220}"
