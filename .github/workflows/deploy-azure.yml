@@ -6,11 +6,21 @@ on:
     paths:
       - ".github/workflows/deploy-azure.yml"
   workflow_dispatch:
-     inputs:
+    inputs:
+      subscription_id:
+        description: "Azure Subscription ID"
+        required: true
+      tenant_id:
+        description: "Azure Tenant ID"
+        required: true
+      client_id:
+        description: "Entra App (GitHub OIDC) Client ID"
+        required: true
       ssh_cidr:
-             description: "CIDR(s) allowed for SSH this run (e.g., 203.0.113.4/32 or '203.0.113.4/32 198.51.100.7/32')"
-             required: false
-             default: ""
+        description: "CIDR(s) allowed for SSH this run (e.g., 203.0.113.4/32 or '203.0.113.4/32 198.51.100.7/32')"
+        required: false
+        default: ""
+
 
 permissions:
   id-token: write    # OIDC to Azure
@@ -46,9 +56,9 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
-          client-id: 0cce1b1b-4a7b-490b-98d0-c37f10229830
-          tenant-id: 37a995a8-b679-461e-950d-fb968d379ce5
-          subscription-id: d3c8b5d7-59b2-4e2c-92f6-0b87d5eb5bdb
+          client-id: ${{ inputs.client_id }}
+          tenant-id: ${{ inputs.tenant_id }}
+          subscription-id: ${{ inputs.subscription_id }}
 
       - name: Preflight checks
         env:
