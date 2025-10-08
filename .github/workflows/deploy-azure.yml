@@ -51,7 +51,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2
@@ -353,6 +356,41 @@ jobs:
             echo "## NSG rules (first 20)"
             head -n 20 evidence/raw/nsg_rules_table.txt 2>/dev/null || true
           } > evidence/safe/README-summary.md
+
+      - name: Write outputs summary
+        if: ${{ success() }}
+        run: |
+          mkdir -p project0-outputs
+          cat > project0-outputs/outputs.json <<JSON
+          {
+            "subscriptionId": "${{ inputs.subscription_id }}",
+            "tenantId": "${{ inputs.tenant_id }}",
+            "clientId": "${{ inputs.client_id }}",
+            "resourceGroup": "${{ env.RESOURCE_PREFIX }}-rg",
+            "workspaceName": "${{ env.RESOURCE_PREFIX }}-law",
+            "location": "${{ env.REGION }}"
+          }
+          JSON
+          echo "✅ Wrote project0-outputs/outputs.json"
+
+      - name: Commit Project 0 outputs.json
+        if: ${{ success() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add project0-outputs/outputs.json
+          # Commit only if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(project0): export outputs.json [skip ci]"
+            # Push back to the same branch this workflow ran on
+            git push origin "${GITHUB_REF#refs/heads/}"
+            echo "✅ Pushed project0-outputs/outputs.json"
+          else
+            echo "ℹ️ No changes to outputs.json; nothing to commit."
+          fi
 
 
       - name: Upload Evidence Pack (sanitized)
