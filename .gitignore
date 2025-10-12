@@ -222,3 +222,4 @@ __marimo__/
 .terraform/
 *.plan
 *.env
+project0-outputs/outputs.json
