@@ -423,7 +423,7 @@ jobs:
         env:
           GITLAB_HOST: gitlab.com
           GITLAB_PROJECT: fedlinllc/fedlin-azure-secure-cicd   # e.g. fedlinllc/fedlin-azure-secure-cicd
-          GITLAB_TOKEN: ***REDACTED***       # PAT with api + write_repository
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}   # stored in repo secrets
         run: |
           set -euo pipefail
           OPEN_SSH="${OPEN_SSH:-false}"
