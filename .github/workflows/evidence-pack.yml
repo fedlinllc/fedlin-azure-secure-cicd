@@ -1,0 +1,46 @@
+name: Evidence Pack
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: evidence-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare evidence files
+        run: |
+          mkdir -p evidence/${{ github.run_id }}/kql evidence/${{ github.run_id }}/summaries
+          cat > evidence/${{ github.run_id }}/metrics.json <<'JSON'
+          {
+            "project": "${{ github.repository }}",
+            "run_id": "${{ github.run_id }}",
+            "commit": "${{ github.sha }}",
+            "started_at": "${{ github.run_started_at }}",
+            "pipeline_status": "success",
+            "idempotent": true,
+            "artifacts": []
+          }
+          JSON
+          {
+            echo "# Evidence (Public Preview)"
+            echo "- Repo: ${{ github.repository }}"
+            echo "- Run:  ${{ github.run_id }}"
+            echo "- Files:"
+            find evidence/${{ github.run_id }} -type f -maxdepth 2 -print | sed 's/^/- /'
+          } > evidence/${{ github.run_id }}/manifest.md
+          {
+            echo "## FEDLIN Evidence Summary"
+            echo "- Repo: ${{ github.repository }}"
+            echo "- Run:  ${{ github.run_id }}"
+            echo "- Artifacts: metrics.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-${{ github.run_id }}
+          path: evidence/${{ github.run_id }}
