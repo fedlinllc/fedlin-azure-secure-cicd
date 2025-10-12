@@ -213,3 +213,12 @@ __marimo__/
 .terraform/
 *.plan
 *.env
+
+# showcase guards
+/evidence/
+/evidence-raw/
+/artifacts/
+*.tfstate
+.terraform/
+*.plan
+*.env
