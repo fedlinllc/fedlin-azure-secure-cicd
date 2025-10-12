@@ -1,0 +1,8 @@
+{
+  "subscriptionId": "SUB_xxxx-xxxx-xxxx-xxxx-xxxx",
+  "tenantId": "TENANT_xxxx-xxxx-xxxx-xxxx-xxxx",
+  "clientId": "APP_xxxx-xxxx-xxxx-xxxx-xxxx",
+  "resourceGroup": "fedlin-rg",
+  "workspaceName": "fedlin-law",
+  "location": "eastus"
+}
