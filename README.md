@@ -94,3 +94,11 @@ This project focuses on **clean deployment + telemetry**. The follow-on project 
 - Cleanup:
   ```bash
   az group delete -n fedlin-rg --yes --no-wait
+
+## Screenshots
+![Pipeline run](docs/img/01-pipeline-run.png)
+![Azure deployment history](docs/img/02-azure-deployment-history.png)
+![Resource group overview](docs/img/03-rg-overview.png)
+![Entra federated credential](docs/img/04-entra-federated-cred.png)
+![IAM role assignments](docs/img/05-iam-role-assignments.png)
+![Evidence Pack](docs/img/06-evidence-pack.png)
