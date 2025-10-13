@@ -401,7 +401,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Gate: Mirror to GitLab (secrets present?)
+      - name: "Gate: Mirror to GitLab (secrets present?)"
         id: mirror_gate
         if: "${{ always() }}"
         shell: bash
