@@ -402,68 +402,53 @@ jobs:
           retention-days: 7
 
 
-  mirror_to_gitlab:
-    name: Mirror to GitLab (non-blocking)
-    needs: deploy
-    if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Git identity
-        run: |
-          git config user.name "fedlin-ci"
-          git config user.email "ci@fedlin.com"
-
-      - name: Add GitLab remote (validate)
-        env:
-          GITLAB_HOST: gitlab.com
-          GITLAB_PROJECT: fedlinllc/fedlin-azure-secure-cicd   # e.g. fedlinllc/fedlin-azure-secure-cicd
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}   # stored in repo secrets
+      - name: Gate: Mirror to GitLab (secrets present?)
+        id: mirror_gate
+        if: ${{ always() }}
+        shell: bash
         run: |
           set -euo pipefail
-          OPEN_SSH="${OPEN_SSH:-false}"
-          MY_IP="${MY_IP:-}"
-          ENABLE_HTTP="${ENABLE_HTTP:-false}"
-
-          : "${GITLAB_HOST:?Set secret GITLAB_HOST (e.g., gitlab.com)}"
-          : "${GITLAB_PROJECT:?Set secret GITLAB_PROJECT (e.g., namespace/repo)}"
-          : "${GITLAB_TOKEN:?Set secret GITLAB_TOKEN (PAT with api,write_repository)}"
-
-          # sanity checks
-          if [[ "$GITLAB_HOST" != *.* ]]; then
-            echo "GITLAB_HOST must be a domain (e.g., gitlab.com)"; exit 1; fi
-          if [[ "$GITLAB_PROJECT" != */* ]]; then
-            echo "GITLAB_PROJECT must be 'namespace/repo' (contains a slash)"; exit 1; fi
-
-          git remote remove gitlab 2>/dev/null || true
-          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@${GITLAB_HOST}/${GITLAB_PROJECT}.git"
-
-          # connectivity check (clear error if PAT/path wrong)
-          git ls-remote --heads gitlab >/dev/null
-          echo "✅ Remote reachable."
-
-
-      - name: Push main + tags to GitLab
-        run: |
-          set -euo pipefail
-          # fetch remote main if present (ignore if missing)
-          git fetch gitlab refs/heads/main:refs/remotes/gitlab/main || true
-
-          # Push main: try fast-forward first; if diverged, use force-with-lease safely
-          if git push gitlab HEAD:refs/heads/main; then
-            echo "Pushed main (fast-forward)."
+          if [[ -z "${{ secrets.GITLAB_TOKEN }}" || -z "${{ secrets.GITLAB_MIRROR_URL }}" ]]; then
+            echo "run=no" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ GitLab mirroring skipped: missing GITLAB_TOKEN or GITLAB_MIRROR_URL."
           else
-            echo "Diverged history. Trying --force-with-lease on main…"
-            git push gitlab HEAD:refs/heads/main --force-with-lease=refs/heads/main
+            echo "run=yes" >> "$GITHUB_OUTPUT"
           fi
 
-          # Push tags with lease
-          git push gitlab --tags --force-with-lease
+      - name: Mirror to GitLab (branches + tags, 60s)
+        if: steps.mirror_gate.outputs.run == 'yes'
+        continue-on-error: true
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_MIRROR_URL: ${{ secrets.GITLAB_MIRROR_URL }} # https://oauth2:${GITLAB_TOKEN}@gitlab.com/<namespace>/<repo>.git
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${GITLAB_TOKEN}"
+          echo "::add-mask::${GITLAB_MIRROR_URL}"
 
-      - name: Done
-        run: echo "✅ Mirrored to GitLab."
+          git config --global safe.directory "$GITHUB_WORKSPACE"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Ensure full history/tags even if checkout used fetch-depth: 1
+          git fetch --tags --force --prune
+          if git rev-parse --is-shallow-repository >/dev/null 2>&1; then
+            git fetch --unshallow || true
+          fi
+
+          # Add remote without echoing URL
+          git remote remove gitlab 2>/dev/null || true
+          git remote add gitlab "${GITLAB_MIRROR_URL}"
+
+          # Push branches & tags with a hard 60s cap
+          timeout 60s bash -lc '
+            set -euo pipefail
+            git push --prune gitlab --all
+            git push gitlab --tags
+          '
+
+      - name: Mirror to GitLab skipped (no secrets)
+        if: steps.mirror_gate.outputs.run != 'yes'
+        shell: bash
+        run: echo "Mirror step skipped; secrets not configured (expected for forks/local runs)."
