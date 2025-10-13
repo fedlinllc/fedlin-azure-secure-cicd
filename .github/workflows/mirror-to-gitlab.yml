@@ -15,14 +15,18 @@ jobs:
       - name: "Gate: Mirror to GitLab (secrets present?)"
         id: mirror_gate
         shell: bash
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_MIRROR_URL: ${{ secrets.GITLAB_MIRROR_URL }}
         run: |
           set -euo pipefail
-          if [[ -z "${{ secrets.GITLAB_TOKEN }}" || -z "${{ secrets.GITLAB_MIRROR_URL }}" ]]; then
+          if [[ -z "${GITLAB_TOKEN:-}" || -z "${GITLAB_MIRROR_URL:-}" ]]; then
             echo "run=no" >> "$GITHUB_OUTPUT"
             echo "GitLab mirroring skipped: missing GITLAB_TOKEN or GITLAB_MIRROR_URL."
           else
             echo "run=yes" >> "$GITHUB_OUTPUT"
           fi
+
 
       - name: Checkout (full history for tags)
         if: ${{ steps.mirror_gate.outputs.run == 'yes' }}
