@@ -401,22 +401,21 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-
       - name: Gate: Mirror to GitLab (secrets present?)
         id: mirror_gate
-        if: ${{ always() }}
+        if: "${{ always() }}"
         shell: bash
         run: |
           set -euo pipefail
           if [[ -z "${{ secrets.GITLAB_TOKEN }}" || -z "${{ secrets.GITLAB_MIRROR_URL }}" ]]; then
             echo "run=no" >> "$GITHUB_OUTPUT"
-            echo "ℹ️ GitLab mirroring skipped: missing GITLAB_TOKEN or GITLAB_MIRROR_URL."
+            echo "GitLab mirroring skipped: missing GITLAB_TOKEN or GITLAB_MIRROR_URL."
           else
             echo "run=yes" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Mirror to GitLab (branches + tags, 60s)
-        if: ${{ always() && steps.mirror_gate.outputs.run == 'yes' }}
+        if: "${{ always() && steps.mirror_gate.outputs.run == 'yes' }}"
         continue-on-error: true
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
@@ -449,6 +448,6 @@ jobs:
           '
 
       - name: Mirror to GitLab skipped (no secrets)
-        if: steps.mirror_gate.outputs.run != 'yes'
+        if: "${{ steps.mirror_gate.outputs.run != 'yes' }}"
         shell: bash
-        run: echo "Mirror step skipped; secrets not configured (expected for forks/local runs)."
+        run: echo "Mirror step skipped; secrets not configured."
