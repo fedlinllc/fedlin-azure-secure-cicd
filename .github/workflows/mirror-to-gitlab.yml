@@ -49,7 +49,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch --tags --force --prune
           git remote remove gitlab 2>/dev/null || true
-          git remote add gitlab "${GITLAB_MIRROR_URL}"
+          AUTHED_URL="${GITLAB_MIRROR_URL/https:\/\//https:\/\/oauth2:${GITLAB_TOKEN}@}"
+git remote add gitlab "$AUTHED_URL"
           timeout 60s bash -lc '
             set -euo pipefail
             git push --prune gitlab --all
