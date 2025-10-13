@@ -1,0 +1,58 @@
+name: Mirror to GitLab
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  mirror_to_gitlab:
+    name: Mirror to GitLab
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    continue-on-error: true
+    steps:
+      - name: "Gate: Mirror to GitLab (secrets present?)"
+        id: mirror_gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ secrets.GITLAB_TOKEN }}" || -z "${{ secrets.GITLAB_MIRROR_URL }}" ]]; then
+            echo "run=no" >> "$GITHUB_OUTPUT"
+            echo "GitLab mirroring skipped: missing GITLAB_TOKEN or GITLAB_MIRROR_URL."
+          else
+            echo "run=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout (full history for tags)
+        if: ${{ steps.mirror_gate.outputs.run == 'yes' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to GitLab (branches + tags, 60s)
+        if: ${{ steps.mirror_gate.outputs.run == 'yes' }}
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_MIRROR_URL: ${{ secrets.GITLAB_MIRROR_URL }} # e.g. https://oauth2:${GITLAB_TOKEN}@gitlab.com/fedlinllc/fedlin-azure-secure-cicd.git
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${GITLAB_TOKEN}"
+          echo "::add-mask::${GITLAB_MIRROR_URL}"
+          git config --global safe.directory "$GITHUB_WORKSPACE"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --tags --force --prune
+          git remote remove gitlab 2>/dev/null || true
+          git remote add gitlab "${GITLAB_MIRROR_URL}"
+          timeout 60s bash -lc '
+            set -euo pipefail
+            git push --prune gitlab --all
+            git push gitlab --tags
+          '
+
+      - name: Mirror skipped (no secrets)
+        if: ${{ steps.mirror_gate.outputs.run != 'yes' }}
+        shell: bash
+        run: echo "Mirror step skipped; secrets not configured."
