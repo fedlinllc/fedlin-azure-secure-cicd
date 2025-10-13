@@ -416,7 +416,7 @@ jobs:
           fi
 
       - name: Mirror to GitLab (branches + tags, 60s)
-        if: steps.mirror_gate.outputs.run == 'yes'
+        if: ${{ always() && steps.mirror_gate.outputs.run == 'yes' }}
         continue-on-error: true
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
