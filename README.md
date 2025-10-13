@@ -15,7 +15,7 @@
 
 Passwordless, least-privileged deployment path to Azure using **GitHub OIDC** and a minimal, idempotent pipeline that exports outputs for downstream labs (Sentinel, Hardening/OpenSCAP, Purview DLP). The pipeline run below demonstrates the baseline working end-to-end:
 
-![Pipeline Run](docs/img/01-pipeline-run.png)
+<img width="1019" height="883" alt="01-pipeline-run" src="https://github.com/user-attachments/assets/01831993-b46c-4865-954d-eab97c35adff" />
 
 ---
 
@@ -38,31 +38,33 @@ Azure Resource Group: fedlin-rg
 
 RG state after a successful deployment:
 
-![Resource Group Overview](docs/img/03-rg-overview.png)
+<img width="1910" height="733" alt="03-rg-overview" src="https://github.com/user-attachments/assets/9ffad273-3ac4-4a3a-99e3-1c3adc0f5a3a" />
+
 
 Azure’s native deployment history provides immutable confirmation of outcomes:
 
-![Azure Deployment History](docs/img/02-azure-deployment-history.png)
+<img width="1910" height="733" alt="02-azure-deployment-history" src="https://github.com/user-attachments/assets/4702f615-c9e8-42fb-bab6-f9c79aeda1e2" />
+
 
 ---
 
 ## Secure Pipeline Highlights
 
 **OIDC to Azure.** Short-lived tokens via a federated credential—no client secrets committed or stored.  
-![Entra Federated Credential](docs/img/04-entra-federated-cred.png)
+<img width="1910" height="733" alt="02-azure-deployment-history" src="https://github.com/user-attachments/assets/381f5f9e-9480-403e-98e5-cd74e09ee47f" />
+
 
 **Least privilege.** RBAC is limited to the Resource Group used by this baseline.  
-![IAM Role Assignments](docs/img/05-iam-role-assignments.png)
+<img width="1492" height="886" alt="05-iam-role-assignments" src="https://github.com/user-attachments/assets/4a064f34-c83a-4e4e-b384-8c59c45fa253" />
 
 **Deterministic & idempotent.** Safe to re-run; stable names; predictable outputs.
 
 **Protected flow.** Work lands via PRs and squash merges to keep history linear.
 
 **Evidence-first.** Artifacts and screenshots demonstrate control intent → outcome.  
-![Evidence Pack](docs/img/06-evidence-pack.png)
+<img width="1406" height="844" alt="06-evidence-pack" src="https://github.com/user-attachments/assets/78b80763-9f8c-44e0-95b7-d8d39e395ae9" />
 
-*(Optional) If GitLab mirroring is enabled, capture a Branches view to show recent push provenance.*  
-![GitLab Mirror (optional)](docs/img/07-gitlab-mirror.png)
+
 
 ---
 
