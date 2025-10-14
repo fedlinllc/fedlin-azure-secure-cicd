@@ -1,96 +1,111 @@
-# Fedlin Azure Secure CI/CD (Self-Contained)
+# Project 0 – Azure Secure CI/CD Baseline
 
-[An open-source pipeline that uses **GitHub Actions + Azure OIDC** to deploy an **AlmaLinux 9 Gen2** VM on Azure and wire it to **Log Analytics** via **Azure Monitor Agent (AMA)** and a **Data Collection Rule (DCR)**.  
-This project focuses on **clean deployment + telemetry**. The follow-on project will cover **hardening / compliance** (CIS, OpenSCAP + Ansible).]
+**Repo:** `fedlin-azure-secure-cicd` • **Branch strategy:** protected `main`, squash merges  
+**Auth:** GitHub OIDC → Azure (no long-lived client secrets)
 
-- Azure CLI ≥ 2.60 (`az version`)
-- GitHub repo admin to add OIDC IDs + secrets
-- One-time RBAC rights at RG scope (Owner or User Access Administrator) to grant the Service Principal **Contributor**
+> #### Preconfigured (one-time manual)
+> - Protect `main` (PRs + squash merges).
+> - Entra ID **federated credential** for this repo/workflow; **RG-scoped RBAC** only.
+> - GitHub repo **secrets** for Azure OIDC where applicable (no secrets in code).
+> - Evidence screenshots stored under `docs/img/`.
+
+---
+
+## Summary
+
+Passwordless, least-privileged deployment path to Azure using **GitHub OIDC** and a minimal, idempotent pipeline that exports outputs for downstream labs (Sentinel, Hardening/OpenSCAP, Purview DLP). The pipeline run below demonstrates the baseline working end-to-end:
+
+<img width="1019" height="883" alt="01-pipeline-run" src="https://github.com/user-attachments/assets/01831993-b46c-4865-954d-eab97c35adff" />
+
+---
+
+## Architecture at a Glance
+
+This repo provisions a shared baseline Resource Group and telemetry primitives consumed by later projects.
+
+```
+GitHub Actions (OIDC federated)
+│
+▼
+Azure Resource Group: fedlin-rg
+├─ Log Analytics Workspace:  fedlin-law
+├─ Data Collection Rule:     fedlin-dcr
+└─ Data Collection Endpoint: fedlin-evidence-dce
+    ├─ Project 1: Sentinel Vulnerability & Compliance Lab
+    ├─ Project 2: Hardening & Remediation (Ansible/OpenSCAP)
+    └─ Project 3: Purview DLP Lab
+```
+
+RG state after a successful deployment:
+
+<img width="1910" height="733" alt="03-rg-overview" src="https://github.com/user-attachments/assets/9ffad273-3ac4-4a3a-99e3-1c3adc0f5a3a" />
+
+
+Azure’s native deployment history provides immutable confirmation of outcomes:
+
+<img width="1910" height="733" alt="02-azure-deployment-history" src="https://github.com/user-attachments/assets/4702f615-c9e8-42fb-bab6-f9c79aeda1e2" />
 
 
 ---
 
-## Highlights
+## Secure Pipeline Highlights
 
-- **Credentialless deploy** with `azure/login` (OIDC).
-- Resources: RG, VNet/Subnet, NIC + Public IP, VM (default `Standard_B1s`).
-- **NSG attached** (defaults only; inbound closed by default in this project).
-- **LAW + AMA + DCR** → syslog routed to Log Analytics.
-- **Evidence pack** uploaded as a GitHub Actions artifact.
-- **GitLab mirror** (non-blocking) on every push.
+**OIDC to Azure.** Short-lived tokens via a federated credential—no client secrets committed or stored.  
+<img width="1910" height="733" alt="02-azure-deployment-history" src="https://github.com/user-attachments/assets/381f5f9e-9480-403e-98e5-cd74e09ee47f" />
 
----
 
-## What it creates
+**Least privilege.** RBAC is limited to the Resource Group used by this baseline.  
+<img width="1492" height="886" alt="05-iam-role-assignments" src="https://github.com/user-attachments/assets/4a064f34-c83a-4e4e-b384-8c59c45fa253" />
 
-- **Resource Group**: `fedlin-rg` (prefix configurable)
-- **Network**: VNet/Subnet, NSG attached to NIC
-- **Compute**: AlmaLinux 9 Gen2 VM
-- **Monitoring**: LAW, DCR (syslog), AMA extension on the VM
-- **Artifacts**: sanitized evidence pack (`fedlin-evidence-pack`)
+**Deterministic & idempotent.** Safe to re-run; stable names; predictable outputs.
 
-> Hardening (CIS `/32`, JIT/Bastion, OpenSCAP + Ansible) will be showcased in the **next** repo.
+**Protected flow.** Work lands via PRs and squash merges to keep history linear.
+
+**Evidence-first.** Artifacts and screenshots demonstrate control intent → outcome.  
+<img width="1406" height="844" alt="06-evidence-pack" src="https://github.com/user-attachments/assets/78b80763-9f8c-44e0-95b7-d8d39e395ae9" />
+
+
 
 ---
 
-## Configure & Run
+## Run It
 
-1. **Azure OIDC**: App Registration + Federated Credential for your GitHub repo.  
-   Capture **Tenant ID**, **Client ID**, **Subscription ID**.
+**GitHub UI:** Actions → run the deploy workflow on `main` (or a PR branch).
 
-2. **Repo → Settings → Secrets and variables → Actions**  
-   - **Secrets**
-     - `SSH_PUBLIC_KEY` — your public key (single line).
-   - **Variables** (or secrets if you prefer)
-     - `REGION` (e.g., `eastus` or `centralus`)
-     - `RESOURCE_PREFIX` (e.g., `fedlin`)
-     - `VM_SIZE` (default `Standard_B1s`)
-     - `ENABLE_HTTP` (`false`)
-     - *(optional)* `MY_IP` (e.g., `203.0.113.45/32`) — not used to open ports in this project.
+**CLI:**
+```bash
+gh workflow run deploy-azure.yml --ref main
+gh run watch --exit-status
+```
 
-3. **Run the workflow**  
-   Push to `main` (or trigger **Run workflow**). The job deploys infra + VM, installs AMA, creates & associates DCR, uploads artifacts, and mirrors to GitLab.
+**Expected results**
+- Workflow completes without secrets in logs.
+- Azure **Deployments** blade shows **Succeeded** for this run (see screenshot above).
+- Downstream projects can consume this repo’s `outputs.json` as needed.
 
 ---
 
-## Evidence (Screenshots)
+## Clean Up
 
-> You provided these; paths below assume you commit them under `docs/media/`.  
-> We intentionally **skip** NSG rule screenshots and Azure Monitor *pipelines (preview)* since they’re not part of this baseline.
-
-- **GitHub Actions – successful run**  
-<img width="1838" height="902" alt="Screenshot from 2025-10-05 18-54-44" src="https://github.com/user-attachments/assets/7d03f395-fa3e-4866-847d-9bdeac0a487e" />
-
-
-- **Azure VM Overview (list)**  
- <img width="1838" height="902" alt="Screenshot from 2025-10-05 18-56-03" src="https://github.com/user-attachments/assets/53f23d47-f185-4de7-a085-8dcec7d755c2" />
-
-
-- **Log Analytics Workspaces (list)**  
-<img width="1907" height="929" alt="Screenshot from 2025-10-05 22-26-38" src="https://github.com/user-attachments/assets/dc724697-62d2-468a-b940-88df4d032a3f" />
-
-
-- **GitLab mirror — repository view**  
-<img width="1907" height="929" alt="Screenshot from 2025-10-05 22-33-55" src="https://github.com/user-attachments/assets/31b80db8-f223-42ed-9eba-dacd6e5d4bff" />
-
-
-> The workflow also uploads a sanitized artifact named **`fedlin-evidence-pack`** for download from the Actions run.
+- Remove temporary branches after merge:
+```bash
+git push origin :<branch-name>
+```
+- Resource teardown is handled in downstream labs when appropriate; this baseline is intended to persist for reuse.
 
 ---
 
-## Mirror Security (Summary)
+## Appendix — One-time manual configuration performed
 
-- GitLab project visibility: **Private**.
-- `main` is **Protected** (push/merge: **Maintainers**, no force-push).
-- GitHub Actions uses a token limited to **`write_repository`**.
-- Optional: push rules to block obvious secret patterns.
+- **GitHub**
+  - Protected `main` (PRs required; squash merges enabled).
+  - Added necessary secrets only for Azure OIDC usage (kept out of code).
 
----
+- **Azure / Entra**
+  - Created a **federated credential** tied to this repo/workflow.
+  - Applied **RG-scoped** role assignments to enforce least privilege.
 
-## Costs & Cleanup
-
-- VM size defaults to **free-tier-friendly** `Standard_B1s`.  
-- Syslog ingestion typically low volume; still subject to LAW pricing.  
-- Cleanup:
-  ```bash
-  az group delete -n fedlin-rg --yes --no-wait
+**Notes**
+- No subscription IDs, tenant IDs, or tokens are exposed in docs or logs.
+- All images are under `docs/img/` for portability across clones/forks.
+- This baseline is the prerequisite for Projects 1–3 (SIEM, hardening, DLP).
