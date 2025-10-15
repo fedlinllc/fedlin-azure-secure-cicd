@@ -15,7 +15,8 @@
 
 Passwordless, least-privileged deployment path to Azure using **GitHub OIDC** and a minimal, idempotent pipeline that exports outputs for downstream labs (Sentinel, Hardening/OpenSCAP, Purview DLP). The pipeline run below demonstrates the baseline working end-to-end:
 
-<img width="1019" height="883" alt="01-pipeline-run" src="https://github.com/user-attachments/assets/01831993-b46c-4865-954d-eab97c35adff" />
+<img width="1837" height="892" alt="01-workflow-run" src="https://github.com/user-attachments/assets/75dfcc1b-8592-48e4-808d-7153f4802f34" />
+
 
 ---
 
@@ -38,12 +39,14 @@ Azure Resource Group: fedlin-rg
 
 RG state after a successful deployment:
 
-<img width="1910" height="733" alt="03-rg-overview" src="https://github.com/user-attachments/assets/9ffad273-3ac4-4a3a-99e3-1c3adc0f5a3a" />
+<img width="1910" height="733" alt="03-rg-overview" src="https://github.com/user-attachments/assets/101b46dd-3f28-46ec-806a-64d6e85a887f" />
+
 
 
 Azure’s native deployment history provides immutable confirmation of outcomes:
 
-<img width="1910" height="733" alt="02-azure-deployment-history" src="https://github.com/user-attachments/assets/4702f615-c9e8-42fb-bab6-f9c79aeda1e2" />
+<img width="1910" height="733" alt="02-azure-deployment-history" src="https://github.com/user-attachments/assets/5930a2f8-cd7c-418b-a4f9-db69ba299c78" />
+
 
 
 ---
@@ -51,18 +54,21 @@ Azure’s native deployment history provides immutable confirmation of outcomes:
 ## Secure Pipeline Highlights
 
 **OIDC to Azure.** Short-lived tokens via a federated credential—no client secrets committed or stored.  
-<img width="1910" height="733" alt="02-azure-deployment-history" src="https://github.com/user-attachments/assets/381f5f9e-9480-403e-98e5-cd74e09ee47f" />
+<img width="1325" height="622" alt="04-entra-federated-cred" src="https://github.com/user-attachments/assets/db8fa29a-771c-47d8-9c15-ac2c78f5f829" />
+
 
 
 **Least privilege.** RBAC is limited to the Resource Group used by this baseline.  
-<img width="1492" height="886" alt="05-iam-role-assignments" src="https://github.com/user-attachments/assets/4a064f34-c83a-4e4e-b384-8c59c45fa253" />
+<img width="1492" height="886" alt="05-iam-role-assignments" src="https://github.com/user-attachments/assets/c4abe08c-49c9-494c-b77a-5562a44ed044" />
+
 
 **Deterministic & idempotent.** Safe to re-run; stable names; predictable outputs.
 
 **Protected flow.** Work lands via PRs and squash merges to keep history linear.
 
 **Evidence-first.** Artifacts and screenshots demonstrate control intent → outcome.  
-<img width="1406" height="844" alt="06-evidence-pack" src="https://github.com/user-attachments/assets/78b80763-9f8c-44e0-95b7-d8d39e395ae9" />
+<img width="1406" height="844" alt="06-evidence-pack" src="https://github.com/user-attachments/assets/2c5b249e-7ebb-45cb-8b21-e646c554852e" />
+
 
 
 
