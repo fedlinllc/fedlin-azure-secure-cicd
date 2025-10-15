@@ -109,3 +109,30 @@ git push origin :<branch-name>
 - No subscription IDs, tenant IDs, or tokens are exposed in docs or logs.
 - All images are under `docs/img/` for portability across clones/forks.
 - This baseline is the prerequisite for Projects 1–3 (SIEM, hardening, DLP).
+
+## Evidence & Telemetry
+
+The pipeline and baseline Azure configuration are validated with the following screenshots (stored under `docs/img/`):
+
+1. **GitHub Actions pipeline run**  
+   ![Pipeline run](docs/img/01-workflow-run.png)
+
+2. **Azure Resource Group — Deployments history**  
+   ![RG deployments](docs/img/02-azure-deployment-history.png)
+
+3. **Azure Resource Group — Overview**  
+   ![RG overview](docs/img/03-rg-overview.png)
+
+4. **Microsoft Entra — Federated credentials (OIDC)**  
+   ![Entra federated credentials](docs/img/04-entra-federated-cred.png)
+
+   > **Note on extra federated credentials**  
+   > You may see additional rows for other repos/branches that belong to later projects.  
+   > For this project, ensure there’s a federated credential whose **Subject** matches this repo/branch:  
+   > `repo:<org>/<repo>:ref:refs/heads/<branch>`
+
+5. **Azure RBAC — Role assignments (service principal / OIDC app)**  
+   ![IAM role assignments](docs/img/05-iam-role-assignments.png)
+
+6. **Evidence Pack artifact (workflow output)**  
+   ![Evidence pack](docs/img/06-evidence-pack.png)
