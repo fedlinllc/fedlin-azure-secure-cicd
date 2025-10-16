@@ -380,7 +380,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add project0-outputs/outputs.json
+          git add -f project0-outputs/outputs.json
           # Commit only if there are changes
           if ! git diff --cached --quiet; then
             git commit -m "chore(project0): export outputs.json [skip ci]"
