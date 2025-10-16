@@ -1,3 +1,6 @@
+[![Deploy](https://github.com/fedlinllc/fedlin-azure-secure-cicd/actions/workflows/deploy-azure.yml/badge.svg)](https://github.com/fedlinllc/fedlin-azure-secure-cicd/actions/workflows/deploy-azure.yml)
+
+
 # Project 0 – Azure Secure CI/CD Baseline
 
 **Repo:** `fedlin-azure-secure-cicd` • **Branch strategy:** protected `main`, squash merges  
