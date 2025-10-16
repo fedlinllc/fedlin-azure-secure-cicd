@@ -1,0 +1,8 @@
+{
+  "subscriptionId": "d3c8b5d7-59b2-4e2c-92f6-0b87d5eb5bdb",
+  "tenantId": "37a995a8-b679-461e-950d-fb968d379ce5",
+  "clientId": "0cce1b1b-4a7b-490b-98d0-c37f10229830",
+  "resourceGroup": "fedlin-rg",
+  "workspaceName": "fedlin-law",
+  "location": "eastus"
+}
